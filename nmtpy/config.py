@@ -2,7 +2,7 @@
 import os
 import glob
 
-from ConfigParser import RawConfigParser
+from ConfigParser import SafeConfigParser
 from argparse import Namespace
 from ast import literal_eval
 
@@ -47,8 +47,8 @@ def _update_dict(d, defs):
             d[k] = v
     return d
 
-class Config(RawConfigParser, object):
-    """Custom parser inheriting from RawConfigParser."""
+class Config(SafeConfigParser, object):
+    """Custom parser inheriting from SafeConfigParser."""
 
     def __init__(self, filename, trdefs=None, mddefs=None, override=None):
         # Call parent's __init__()
