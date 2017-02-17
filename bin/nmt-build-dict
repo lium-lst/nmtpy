@@ -97,4 +97,4 @@ if __name__ == '__main__':
                     if line:
                         sentences.append(line)
 
-        create_dict(sentences, args.min_freq, vocab_fname + '.pkl')
+        create_dict(sentences, args.min_freq, vocab_fname + '.vocab.pkl')
