@@ -78,11 +78,13 @@ The models are separated into 8 files implementing their own multimodal CGRU dif
 
 The `WMTIterator` only knows how to handle the ResNet-50 convolutional features that we provide in the examples page. If you would like to use FC-style fixed-length vectors or other types of multimodal features, you need to write your own iterator.
 
-### Factored NMT
+### Factored NMT: `attention_factors.py`
 
-The model file for the following paper will be provided as soon as the integration is ready:
+The model file `attention_factors.py` corresponds to the following paper:
 
 [García-Martínez, Mercedes, Loïc Barrault, and Fethi Bougares. "Factored Neural Machine Translation." arXiv preprint arXiv:1609.04621 (2016).](https://arxiv.org/abs/1609.04621)
+
+In the examples folder of this repository, you can find data and a configuration file to run this model.
 
 ### RNNLM: `rnnlm.py`
 
