@@ -97,7 +97,6 @@ class Translator(object):
         self.get_att_alphas = self.export
 
         # Fetch other arguments
-        self.first          = args.first
         self.nbest          = args.nbest
         self.seed           = args.seed
         self.mode           = args.decoder
@@ -182,13 +181,7 @@ class Translator(object):
             # Set self.iterator to self.models[0].valid_iterator
             self.iterator = self.models[0].valid_iterator
 
-            # Full or partial decoding given by -f argument
-            if self.first > 0:
-                # Only first self.first sentences
-                self.n_sentences = self.first
-            else:
-                # All sentences
-                self.n_sentences = self.iterator.n_samples
+            self.n_sentences = self.iterator.n_samples
 
             # Assume validation data encoded in the model
             if self.src_files is None:
@@ -385,7 +378,6 @@ class Translator(object):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(prog='nmt-translate')
-    parser.add_argument('-f', '--first'         , type=int, default=0,      help="How many sentences should be translated, useful for debugging.")
     parser.add_argument('-j', '--n-jobs'        , type=int, default=8,      help="Number of processes (default: 8, 0: Auto)")
     parser.add_argument('-b', '--beam-size'     , type=int, default=12,     help="Beam size (only for beam-search)")
     parser.add_argument('-N', '--nbest'         , type=int, default=1,      help="N for N-best output (only for beam-search)")
