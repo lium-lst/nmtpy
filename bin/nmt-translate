@@ -179,7 +179,6 @@ class Translator(object):
 
             # Set self.iterator to self.models[0].valid_iterator
             self.iterator = self.models[0].valid_iterator
-
             self.n_sentences = self.iterator.n_samples
 
             # Assume validation data encoded in the model
@@ -319,7 +318,6 @@ class Translator(object):
             c = get_scorer(scorer)()
             score = c.compute(self.ref_files, hyp_file)
             results[scorer] = (str(score), score.score)
-        self.results = results
         return results
 
     def dump_json(self, filename):
@@ -428,9 +426,5 @@ if __name__ == "__main__":
     # No need to compute metrics with nbest style files
     if args.decoder != "forced" and args.nbest == 1 \
             and translator.ref_files and not args.score:
-        # Compute all metrics
-        results = translator.compute_metrics(out_file, args.metrics.split(","))
-        # NOTE: This dict is expected from nmt-translate for obtaining the validation results.
-        print(results)
-
-    sys.exit(0)
+        # Compute metrics and print them. Printing is necessary for nmt-train
+        print(translator.compute_metrics(out_file, args.metrics.split(",")))
