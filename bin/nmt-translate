@@ -22,7 +22,6 @@ import numpy as np
 from nmtpy.logger           import Logger
 from nmtpy.metrics          import get_scorer
 from nmtpy.nmtutils         import idx_to_sent
-from nmtpy.textutils        import reduce_to_best
 from nmtpy.sysutils         import *
 from nmtpy.filters          import get_filter
 from nmtpy.iterators.bitext import BiTextIterator
@@ -33,6 +32,14 @@ import nmtpy.cleanup as cleanup
 # Setup the logger
 Logger.setup()
 log = Logger.get()
+
+# This is to avoid thread explosion. Allow
+# each process to use a single thread.
+os.environ["OMP_NUM_THREADS"] = "1"
+os.environ["MKL_NUM_THREADS"] = "1"
+
+# Force CPU
+os.environ["THEANO_FLAGS"] = "device=cpu,optimizer_including=local_remove_all_assert"
 
 """Worker process which does beam search."""
 def translate_model(rqueue, wqueue, pid, models, beam_size, nbest, suppress_unks, get_att_alphas=False, seed=1234, mode="beamsearch"):
@@ -97,7 +104,7 @@ class Translator(object):
         self.seed           = args.seed
         self.mode           = args.decoder
         self.n_jobs         = args.n_jobs
-        self.valid_mode     = args.validmode
+        self.data_mode      = args.validmode
 
         self.models         = []
         self.model_files    = args.models
@@ -166,7 +173,7 @@ class Translator(object):
             # Initialize model's validation data iterator
             # NOTE: data_mode is for best-source-selection decoding for multimodal systems
             if 'data_mode' in inspect.getargspec(self.models[0].load_valid_data).args:
-                self.models[0].load_valid_data(from_translate=True, data_mode=self.valid_mode)
+                self.models[0].load_valid_data(from_translate=True, data_mode=self.data_mode)
             else:
                 self.models[0].load_valid_data(from_translate=True)
 
@@ -300,10 +307,6 @@ class Translator(object):
                     for tr, sc in zip(trs, scs):
                         f.write("%d ||| %s ||| %.6f\n" % (idx, tr, sc))
             else:
-                if self.valid_mode == 'pairs':
-                    # Pick the best hyp out of all source sentences for a single image
-                    self.trans = reduce_to_best(self.trans, self.scores,
-                                                self.iterator.n_unique_images, avoid_unk=True)
                 # Prepare and dump
                 self.hyps = [s[0] for s in self.trans]
                 hyps = "\n".join(self.hyps) + "\n"
@@ -397,14 +400,6 @@ if __name__ == "__main__":
     if args.n_jobs == 0:
         # Auto infer CPU number
         args.n_jobs = (cpu_count() / 2) - 1
-
-    # This is to avoid thread explosion. Allow
-    # each process to use a single thread.
-    os.environ["OMP_NUM_THREADS"] = "1"
-    os.environ["MKL_NUM_THREADS"] = "1"
-
-    # Force CPU
-    os.environ["THEANO_FLAGS"] = "device=cpu,optimizer_including=local_remove_all_assert"
 
     # Print some informations
     log.info("%d CPU processes - beam size = %2d" % (args.n_jobs, args.beam_size))
