@@ -109,7 +109,7 @@ class BaseModel(object, metaclass=ABCMeta):
         for kk in _from.keys():
             self.tparams[kk].set_value(_from[kk])
 
-    def val_loss(self):
+    def val_loss(self, mean=True):
         """Compute validation loss."""
         probs = []
 
@@ -121,7 +121,10 @@ class BaseModel(object, metaclass=ABCMeta):
             log_probs = self.f_log_probs(*list(data.values())) / norm
             probs.extend(log_probs)
 
-        return np.array(probs).mean()
+        if mean:
+            return np.array(probs).mean()
+        else:
+            return np.array(probs)
 
     def get_l2_weight_decay(self, decay_c, skip_bias=True):
         """Return l2 weight decay regularization term."""
