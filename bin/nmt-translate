@@ -92,10 +92,6 @@ class Translator(object):
         # for further exporting to json
         self.export = args.export
 
-        # Assume for now that a request for JSON exporting
-        # assumes fetching attentional alphas as well.
-        self.get_att_alphas = self.export
-
         # Fetch other arguments
         self.nbest          = args.nbest
         self.seed           = args.seed
@@ -132,10 +128,6 @@ class Translator(object):
 
             self.models.append(model)
             self.model_options.append(model_options)
-
-        # Sanity check for target vocabularies: they should all be same
-        if self.n_models > 1:
-            assert len(set([len(mopts['trg_dict']) for mopts in self.model_options])) == 1
 
         # Check for post-processing filter
         if "filter" in self.model_options[0]:
@@ -219,7 +211,7 @@ class Translator(object):
         for idx in range(self.n_jobs):
             self.processes[idx] = Process(target=translate_model,
                                           args=(write_queue, read_queue, idx, self.models, self.beam_size,
-                                          self.nbest, self.suppress_unks, self.get_att_alphas,
+                                          self.nbest, self.suppress_unks, self.export,
                                           self.seed, self.mode))
             # Start process and register for cleanup
             self.processes[idx].start()
