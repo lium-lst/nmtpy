@@ -439,7 +439,7 @@ class Model(BaseModel):
         embr = embr.reshape([n_timesteps, n_samples, self.embedding_dim])
 
         # encoder
-        proj = get_new_layer(self.enc_type)[1](self.tparams, emb, prefix='encoder', layernorm=self.lnorm)
+        proj  = get_new_layer(self.enc_type)[1](self.tparams, emb, prefix='encoder', layernorm=self.lnorm)
         projr = get_new_layer(self.enc_type)[1](self.tparams, embr, prefix='encoder_r', layernorm=self.lnorm)
 
         # concatenate forward and backward rnn hidden states
