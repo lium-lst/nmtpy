@@ -374,9 +374,6 @@ class Model(Attention):
         # compute the logsoftmax
         next_log_probs = tensor.nnet.logsoftmax(logit)
 
-        # Sample from the softmax distribution
-        # next_probs = tensor.exp(next_log_probs)
-
         ################
         # Build f_next()
         ################
