@@ -286,9 +286,6 @@ class Model(Attention):
         self.valid_iterator.read()
 
     def init_params(self):
-        if self.init_gru_decoder is None:
-            raise Exception('Base fusion model should not be instantiated directly.')
-
         params = OrderedDict()
 
         # embedding weights for encoder (source language)
@@ -589,8 +586,3 @@ class Model(Attention):
         inputs      = [y, init_state, text_ctx, img_ctx]
         outs        = [next_log_probs, h, alphas]
         self.f_next = theano.function(inputs, outs, name='f_next')
-
-    def get_alpha_regularizer(self, alpha_c):
-        alpha_c = theano.shared(np.float64(alpha_c).astype(FLOAT), name='alpha_c')
-        alpha_reg = alpha_c * ((1.-self.alphas[1].sum(0))**2).sum(0).mean()
-        return alpha_reg
