@@ -404,14 +404,7 @@ class Model(BaseModel):
         self.train_iterator.read()
         self.load_valid_data()
 
-    def add_alpha_regularizer(self, alpha_c):
-        alpha_c = theano.shared(np.float64(alpha_c).astype(FLOAT), name='alpha_c')
-        alpha_reg = alpha_c * (
-            (tensor.cast(self.inputs['y_mask'].sum(0) // self.inputs['x_mask'].sum(0), FLOAT)[:, None] -
-             self.alphas.sum(0))**2).sum(1).mean()
-        return alpha_reg
-
-    ###################################################################
+   ###################################################################
     # The following methods can be redefined in child models inheriting
     # from this basic Attention model.
     ###################################################################

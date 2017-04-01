@@ -15,7 +15,6 @@ TRAIN_DEFAULTS = {
         'init':               None,           # Pretrained model .npz file
         'device_id':          'auto',         #
         'seed':               1234,           # RNG seed
-        'alpha_c':            0.,             # Alpha regularization for attentional models (not quite tested)
         'clip_c':             5.,             # Clip gradients above clip_c
         'decay_c':            0.,             # L2 penalty factor
         'patience':           10,             # Early stopping patience

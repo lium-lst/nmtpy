@@ -274,10 +274,6 @@ class BaseModel(object, metaclass=ABCMeta):
         """Reimplement to show model specific information before training."""
         pass
 
-    def get_alpha_regularizer(self, alpha_c):
-        # This should be implemented in attentional models if necessary.
-        return 0.
-
     ##########################################################
     # For all the abstract methods below, you can take a look
     # at attention.py to understand how they are implemented.

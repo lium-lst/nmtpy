@@ -253,9 +253,6 @@ def get_exp_identifier(train_args, model_args, suffix=None):
     if train_args.clip_c > 0:
         name += "-gc%d" % int(train_args.clip_c)
 
-    if train_args.alpha_c > 0:
-        name += "-alpha_%.e" % train_args.alpha_c
-
     if isinstance(model_args.weight_init, str):
         name += "-init_%s" % model_args.weight_init
     else:
