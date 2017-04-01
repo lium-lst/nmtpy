@@ -220,8 +220,6 @@ if __name__ == '__main__':
     reg_loss = []
     if train_args.decay_c > 0:
         reg_loss.append(model.get_l2_weight_decay(train_args.decay_c))
-    if train_args.alpha_c > 0:
-        reg_loss.append(model.get_alpha_regularizer(train_args.alpha_c))
 
     reg_loss = sum(reg_loss) if len(reg_loss) > 0 else None
 
