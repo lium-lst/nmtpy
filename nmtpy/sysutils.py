@@ -98,6 +98,13 @@ def real_path(p):
     """Expand UNIX tilde and return real path."""
     return os.path.realpath(os.path.expanduser(p))
 
+def force_symlink(origfile, linkname):
+    try:
+        os.symlink(origfile, linkname)
+    except FileExistsError as e:
+        os.unlink(linkname)
+        os.symlink(origfile, linkname)
+
 def listify(l):
     """Encapsulate l with list[] if not."""
     return [l] if not isinstance(l, list) else l
