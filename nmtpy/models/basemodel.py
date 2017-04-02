@@ -215,7 +215,8 @@ class BaseModel(object, metaclass=ABCMeta):
                                           valid_mode=valid_mode,
                                           f_valid_out=f_valid_out)
 
-        return result[metric]
+        # Return every available metric back
+        return result
 
     def gen_sample(self, input_dict, maxlen=50, argmax=False):
         """Generate samples, do greedy (argmax) decoding or forced decoding."""
