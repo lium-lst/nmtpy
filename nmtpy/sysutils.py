@@ -231,8 +231,8 @@ def get_exp_identifier(train_args, model_args, suffix=None):
     # Append batch size
     name += '-bs%d' % model_args.batch_size
 
-    # Validation stuff
-    name += '-%s' % train_args.valid_metric
+    # Validation stuff (first: early-stop metric)
+    name += '-%s' % train_args.valid_metric.split(',')[0]
 
     if train_args.valid_freq > 0:
         name += "-each%d" % train_args.valid_freq
