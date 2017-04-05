@@ -84,7 +84,7 @@ class MainLoop(object):
             cur_score = self.valid_metrics[self.early_metric][-1]
 
             # Custom filename with metric score
-            cur_fname = "%s-val_%s-%.2f.npz" % (self.model.save_path, self.early_metric, cur_score)
+            cur_fname = "%s-val%3.3d-%s_%.3f.npz" % (self.model.save_path, self.vctr, self.early_metric, cur_score)
 
             # Stack is empty, save the model whatsoever
             if len(self.best_models) < self.save_best_n:
