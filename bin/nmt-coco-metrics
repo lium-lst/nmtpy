@@ -17,14 +17,16 @@ from nmtpy.cocoeval.rouge.rouge     import Rouge
 from nmtpy.cocoeval.cider.cider     import Cider
 from nmtpy.cocoeval.meteor.meteor   import Meteor
 
-def print_table(results):
+def print_table(results, sort_by='METEOR'):
     cols = ['Bleu_1', 'Bleu_2', 'Bleu_3', 'Bleu_4',
             'METEOR', 'METEOR (norm)', 'CIDEr', 'ROUGE_L']
     for col in cols:
         print('|{:^15}|'.format(col), end='')
     print()
 
-    for sysname, result in results.items():
+    results = sorted(results.items(), key=lambda x: x[1][sort_by])
+
+    for sysname, result in results:
         if len(results) > 1:
             print(sysname)
         for col in cols:
