@@ -53,7 +53,7 @@ class Meteor(object):
             scores.append(score)
 
         # Final score
-        final_score = float(self.meteor_p.stdout.readline().strip())
+        final_score = 100*float(self.meteor_p.stdout.readline().strip())
         self.lock.release()
 
         return final_score, scores

@@ -109,7 +109,7 @@ class BaseModel(object, metaclass=ABCMeta):
         for kk in _from.keys():
             self.tparams[kk].set_value(_from[kk])
 
-    def val_loss(self):
+    def val_loss(self, mean=True):
         """Compute validation loss."""
         probs = []
 
@@ -121,7 +121,10 @@ class BaseModel(object, metaclass=ABCMeta):
             log_probs = self.f_log_probs(*list(data.values())) / norm
             probs.extend(log_probs)
 
-        return np.array(probs).mean()
+        if mean:
+            return np.array(probs).mean()
+        else:
+            return np.array(probs)
 
     def get_l2_weight_decay(self, decay_c, skip_bias=True):
         """Return l2 weight decay regularization term."""
@@ -212,7 +215,8 @@ class BaseModel(object, metaclass=ABCMeta):
                                           valid_mode=valid_mode,
                                           f_valid_out=f_valid_out)
 
-        return result[metric]
+        # Return every available metric back
+        return result
 
     def gen_sample(self, input_dict, maxlen=50, argmax=False):
         """Generate samples, do greedy (argmax) decoding or forced decoding."""
@@ -270,10 +274,6 @@ class BaseModel(object, metaclass=ABCMeta):
     def info(self):
         """Reimplement to show model specific information before training."""
         pass
-
-    def get_alpha_regularizer(self, alpha_c):
-        # This should be implemented in attentional models if necessary.
-        return 0.
 
     ##########################################################
     # For all the abstract methods below, you can take a look

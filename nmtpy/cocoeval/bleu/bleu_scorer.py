@@ -258,5 +258,7 @@ class BleuScorer(object):
             print(totalcomps)
             print("ratio:", ratio)
 
+        # Normalize to percentage
+        bleus = [100*b for b in bleus]
         self._score = bleus
         return self._score, bleu_list
