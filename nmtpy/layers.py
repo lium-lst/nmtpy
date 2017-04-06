@@ -28,7 +28,7 @@ def get_new_layer(name):
     # Layer type: (initializer, layer)
     layers = {
                 # Highway layer
-                'highway'           : ('param_init_hiway',      , 'hiway_layer'),
+                'highway'           : ('param_init_hiway'       , 'hiway_layer'),
                 # Convolutional layer (not-tested)
                 'conv'              : ('param_init_conv'        , 'conv_layer'),
                 # Feedforward Layer
@@ -140,6 +140,8 @@ def gru_step(m_, x_, xx_, h_, U, Ux):
 #####################
 # Convolutional layer
 #####################
+# TODO: Make the interface more easy
+# TODO: Rework initialization (keras)
 def param_init_conv(params, input_shape, filter_shape, scale='he', prefix='conv'):
     # input_shape : (input_channels, input_rows, input_cols)
     # filter_shape: (output_channels, input_channels, filter_rows, filter_cols)
