@@ -449,7 +449,7 @@ class Translator(object):
         # if factors add trans_fact to the dump file
         # NOTE: att_weights are not cleared from BPE in terms of number of tokens
         if args.factors:
-            for s, t, f, att in zip(srcs, self.trans, self.trans_mult, self.att_weights):
+            for s, t, f, att in zip(srcs, self.trans, self.trans_fact, self.att_weights):
                 sample = {'src' : s.split(' '), 'trg' : t[0].split(' '), 'trgfact' : f[0].split(' '), 'ref' : refs.pop(0), 'att': att}
                 samples.append(sample)
         else:
