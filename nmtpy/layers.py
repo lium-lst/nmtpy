@@ -27,6 +27,8 @@ def tensor_slice(_x, n, dim):
 def get_new_layer(name):
     # Layer type: (initializer, layer)
     layers = {
+                # Highway layer
+                'highway'           : ('param_init_hiway',      , 'hiway_layer'),
                 # Convolutional layer (not-tested)
                 'conv'              : ('param_init_conv'        , 'conv_layer'),
                 # Feedforward Layer
@@ -173,6 +175,33 @@ def fflayer(tparams, state_below, prefix='ff', activ='tanh'):
         tensor.dot(state_below, tparams[pp(prefix, 'W')]) +
         tparams[pp(prefix, 'b')]
         )
+
+##################################
+# Highway layer
+# https://arxiv.org/abs/1505.00387
+##################################
+def param_init_hiway(params, nin, scale=0.01, ortho=True, prefix='hw', carry_bias=-1.0):
+    # nin == nout for HW layers
+    params[pp(prefix, 'W_t')] = norm_weight(nin, nin, scale=scale, ortho=ortho)
+    params[pp(prefix, 'b_t')] = carry_bias * np.ones((nin,)).astype(FLOAT)
+
+    params[pp(prefix, 'W')]   = norm_weight(nin, nin, scale=scale, ortho=ortho)
+    params[pp(prefix, 'b')]   = np.zeros((nin,)).astype(FLOAT)
+
+    return params
+
+def hiwaylayer(tparams, x, prefix='hw', activ='tanh'):
+    # Transform gate(x, W_t, b_t) = sigmoid(W_t * x + b_t)
+    t = sigmoid(tensor.dot(x, tparams[pp(prefix, 'W_t')]) + tparams[pp(prefix, 'b_t')])
+
+    # Normal affine transform + non-linearity
+    h = eval(activ)(tensor.dot(x, tparams[pp(prefix, 'W')]) + tparams[pp(prefix, 'b')])
+
+    # Right hand side defines input to be carried
+    # while left hand side is classical FF
+    out = (t * h) + (1. - t) * x
+
+    return out
 
 ###########
 # GRU layer
