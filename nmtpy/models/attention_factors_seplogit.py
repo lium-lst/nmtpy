@@ -21,7 +21,9 @@ from ..iterators.factors import FactorsIterator
 from .basemodel import BaseModel
 from .attention import Model
 from ..sysutils import readable_size, get_temp_file, get_valid_evaluation
+#from .attention_factors import Model as AttentionFactors
 
+#class Model(AttentionFactors):
 class Model(BaseModel):
     def __init__(self, seed, logger, **kwargs):
         # Call parent's init first
@@ -129,7 +131,7 @@ class Model(BaseModel):
         fact_bleu_str, fact_bleu = result['out2']
         self.logger.info("Out2: %s" % fact_bleu_str)
 
-        return {metric: result[metric]}
+        return result[metric]
 
     @staticmethod
     def beam_search(inputs, f_inits, f_nexts, beam_size=12, maxlen=50, suppress_unks=False, **kwargs):
@@ -402,7 +404,14 @@ class Model(BaseModel):
         self.train_iterator.read()
         self.load_valid_data()
 
-   ###################################################################
+    def add_alpha_regularizer(self, alpha_c):
+        alpha_c = theano.shared(np.float64(alpha_c).astype(FLOAT), name='alpha_c')
+        alpha_reg = alpha_c * (
+            (tensor.cast(self.inputs['y_mask'].sum(0) // self.inputs['x_mask'].sum(0), FLOAT)[:, None] -
+             self.alphas.sum(0))**2).sum(1).mean()
+        return alpha_reg
+
+    ###################################################################
     # The following methods can be redefined in child models inheriting
     # from this basic Attention model.
     ###################################################################
@@ -444,7 +453,8 @@ class Model(BaseModel):
         # fusion
         ########
         params = get_new_layer('ff')[0](params, prefix='ff_logit_gru'  , nin=self.rnn_dim       , nout=self.embedding_dim, scale=self.weight_init, ortho=False)
-        params = get_new_layer('ff')[0](params, prefix='ff_logit_prev' , nin=2*self.embedding_dim , nout=self.embedding_dim, scale=self.weight_init, ortho=False)
+        params = get_new_layer('ff')[0](params, prefix='ff_logit_lem' ,  nin=self.embedding_dim , nout=self.embedding_dim, scale=self.weight_init, ortho=False)
+        params = get_new_layer('ff')[0](params, prefix='ff_logit_fact' , nin=self.embedding_dim , nout=self.embedding_dim, scale=self.weight_init, ortho=False)
         params = get_new_layer('ff')[0](params, prefix='ff_logit_ctx'  , nin=self.ctx_dim       , nout=self.embedding_dim, scale=self.weight_init, ortho=False)
         if self.tied_trg_emb is False:
             params = get_new_layer('ff')[0](params, prefix='ff_logit_trg'  , nin=self.embedding_dim , nout=self.n_words_trg1, scale=self.weight_init)
@@ -546,17 +556,19 @@ class Model(BaseModel):
         # compute word probabilities
         logit_gru  = get_new_layer('ff')[1](self.tparams, proj_h, prefix='ff_logit_gru', activ='linear')
         logit_ctx  = get_new_layer('ff')[1](self.tparams, ctxs, prefix='ff_logit_ctx', activ='linear')
-        logit_prev = get_new_layer('ff')[1](self.tparams, emb_prev, prefix='ff_logit_prev', activ='linear')
+        logit_lem = get_new_layer('ff')[1](self.tparams, emb_lem, prefix='ff_logit_lem', activ='linear')
+        logit_fact = get_new_layer('ff')[1](self.tparams, emb_fact, prefix='ff_logit_fact', activ='linear')
 
-        logit = dropout(tanh(logit_gru + logit_prev + logit_ctx), self.trng, self.out_dropout, self.use_dropout)
+        logit1 = dropout(tanh(logit_gru + logit_lem + logit_ctx), self.trng, self.out_dropout, self.use_dropout)
+        logit2 = dropout(tanh(logit_gru + logit_fact + logit_ctx), self.trng, self.out_dropout, self.use_dropout)
 
         if self.tied_trg_emb is False:
-            logit_trg = get_new_layer('ff')[1](self.tparams, logit, prefix='ff_logit_trg', activ='linear')
-            logit_trgmult = get_new_layer('ff')[1](self.tparams, logit, prefix='ff_logit_trgmult', activ='linear')
+            logit_trg = get_new_layer('ff')[1](self.tparams, logit1, prefix='ff_logit_trg', activ='linear')
+            logit_trgmult = get_new_layer('ff')[1](self.tparams, logit2, prefix='ff_logit_trgmult', activ='linear')
         
         else:
-            logit_trg = tensor.dot(logit, self.tparams['Wemb_dec_lem'].T)
-            logit_trgmult = tensor.dot(logit, self.tparams['Wemb_dec_fact'].T)
+            logit_trg = tensor.dot(logit1, self.tparams['Wemb_dec_lem'].T)
+            logit_trgmult = tensor.dot(logit2, self.tparams['Wemb_dec_fact'].T)
 
         logit_trg_shp = logit_trg.shape
         logit_trgmult_shp = logit_trgmult.shape
@@ -653,18 +665,20 @@ class Model(BaseModel):
         ctxs = r[1]
         alphas = r[2]
 
-        logit_prev = get_new_layer('ff')[1](self.tparams, emb_prev,     prefix='ff_logit_prev',activ='linear')
+        logit_lem  = get_new_layer('ff')[1](self.tparams, emb_lem,      prefix='ff_logit_lem' ,activ='linear')
+        logit_fact = get_new_layer('ff')[1](self.tparams, emb_fact,     prefix='ff_logit_fact',activ='linear')
         logit_ctx  = get_new_layer('ff')[1](self.tparams, ctxs,         prefix='ff_logit_ctx', activ='linear')
         logit_gru  = get_new_layer('ff')[1](self.tparams, next_state,   prefix='ff_logit_gru', activ='linear')
 
-        logit = tanh(logit_gru + logit_prev + logit_ctx)
+        logit1 = tanh(logit_gru + logit_lem + logit_ctx)
+        logit2 = tanh(logit_gru + logit_fact + logit_ctx)
 
         if self.tied_trg_emb is False:
-            logit = get_new_layer('ff')[1](self.tparams, logit, prefix='ff_logit', activ='linear')
-            logit_trgmult = get_new_layer('ff')[1](self.tparams, logit, prefix='ff_logit_trgmult', activ='linear')
+            logit = get_new_layer('ff')[1](self.tparams, logit1, prefix='ff_logit', activ='linear')
+            logit_trgmult = get_new_layer('ff')[1](self.tparams, logit2, prefix='ff_logit_trgmult', activ='linear')
         else:
-            logit_trg = tensor.dot(logit, self.tparams['Wemb_dec_lem'].T)
-            logit_trgmult = tensor.dot(logit, self.tparams['Wemb_dec_fact'].T)
+            logit_trg = tensor.dot(logit1, self.tparams['Wemb_dec_lem'].T)
+            logit_trgmult = tensor.dot(logit2, self.tparams['Wemb_dec_fact'].T)
 
         # compute the logsoftmax
         next_log_probs_trg = tensor.nnet.logsoftmax(logit_trg)
