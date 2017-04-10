@@ -527,7 +527,10 @@ if __name__ == "__main__":
 
     # Export attentional informations if -o and -e are given
     if args.export and args.saveto:
-        translator.dump_json("%s.json" % out_file)
+        if args.factors:
+            translator.dump_json("%s.json" % out_file[0])
+        else:
+            translator.dump_json("%s.json" % out_file)
 
     # Dump hypotheses
     # pass output file, number of output and scores
