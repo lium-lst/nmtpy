@@ -214,8 +214,8 @@ class MainLoop(object):
                 # Create a link towards best hypothesis file
                 if self.valid_save_hyp:
                     if self.factors:
+                        # For factors mode is compulsary to save those files to call the script to combine them
                         f_best_lem = "%s.BEST.lem" % os.path.splitext(f_valid_out+'.lem')[0]
-                        print ('f_best_lem:', f_best_lem)
                         f_best_fact = "%s.BEST.fact" % os.path.splitext(f_valid_out+'.fact')[0]
                         if os.path.exists(f_best_lem):
                             os.unlink(f_best_lem)
