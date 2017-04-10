@@ -2,7 +2,7 @@
 import subprocess
 import pkg_resources
 
-from .metric    import Metric
+from .metric import Metric
 
 BLEU_SCRIPT = pkg_resources.resource_filename('nmtpy', 'external/multi-bleu.perl')
 

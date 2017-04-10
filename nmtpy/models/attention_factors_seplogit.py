@@ -128,7 +128,7 @@ class Model(BaseModel):
         fact_bleu_str, fact_bleu = result['out2']
         self.logger.info("Out2: %s" % fact_bleu_str)
 
-        return result[metric]
+        return {metric: result[metric]}
 
     @staticmethod
     def beam_search(inputs, f_inits, f_nexts, beam_size=12, maxlen=50, suppress_unks=False, **kwargs):

@@ -9,76 +9,102 @@ from collections import OrderedDict
 
 import numpy as np
 
-def create_dict(sentences, min_freq, output_file):
-    word_freqs = OrderedDict()
-    l_sentences = len(sentences)
-    for idx, sent in enumerate(sentences):
-        # Collect frequencies
-        for w in sent.split(' '):
-            if w not in word_freqs:
-                word_freqs[w] = 0
-            word_freqs[w] += 1
+def freqs_to_dict(token_freqs, min_freq):
+    # Get list of tokens
+    tokens = list(token_freqs.keys())
 
-        if (idx+1) % 10000 == 0:
-            print('\r%d/%d processed' % (idx + 1, l_sentences), end=' ')
-            sys.stdout.flush()
+    # Collect their frequencies in a numpy array
+    freqs = np.array(list(token_freqs.values()))
 
-    print()
-
-    # Remove already available <eos> and <unk> if any
-    if '<eos>' in word_freqs:
-        del word_freqs['<eos>']
-    if '<unk>' in word_freqs:
-        del word_freqs['<unk>']
-
-    words = list(word_freqs.keys())
-    freqs = np.array(list(word_freqs.values()))
-
-    # Some heuristic to warn against non-tokenized data
-    if "." not in words or "," not in words:
-        print("(You can ignore this if the input doesn't contain punctuations.)")
-        print("WARNING: Check that the input data is tokenized!")
+    tokendict = OrderedDict()
+    tokendict['<eos>'] = 0
+    tokendict['<unk>'] = 1
 
     # Sort in descending order of frequency
     sorted_idx = np.argsort(freqs)
-    sorted_words = [words[ii] for ii in \
-                    sorted_idx[::-1] if freqs[ii] >= min_freq]
-
-    print("# of unique words in %s: %d" % (filename, len(sorted_words)))
-
-    worddict = OrderedDict()
-    worddict['<eos>'] = 0
-    worddict['<unk>'] = 1
+    if min_freq > 0:
+        sorted_tokens = [tokens[ii] for ii in sorted_idx[::-1] if freqs[ii] >= min_freq]
+    else:
+        sorted_tokens = [tokens[ii] for ii in sorted_idx[::-1]]
 
     # Start inserting from index 2
-    for ii, ww in enumerate(sorted_words):
-        worddict[ww] = ii + 2
+    for ii, ww in enumerate(sorted_tokens):
+        tokendict[ww] = ii + 2
 
-    print("Dumping vocabulary (%d tokens) to %s..." % (len(worddict), output_file))
-    with open(output_file, 'wb') as f:
-        pkl.dump(worddict, f)
+    return tokendict
 
+def get_freqs(fname, cumul_dict=None):
+    # We'll first count frequencies
+    if cumul_dict is not None:
+        # Let's accumulate frequencies
+        token_freqs = cumul_dict
+    else:
+        token_freqs = OrderedDict()
+
+    print("Reading file %s" % filename)
+    with open(filename) as f:
+        idx = 0
+        for line in f:
+            line = line.strip()
+            if line:
+                # Collect frequencies
+                for w in line.split(' '):
+                    if w not in token_freqs:
+                        token_freqs[w] = 0
+                    token_freqs[w] += 1
+
+                if (idx+1) % 10000 == 0:
+                    print('\r%d sentences processed' % (idx + 1), end=' ')
+                    sys.stdout.flush()
+
+                idx += 1
+
+    print()
+    # Remove already available <eos> and <unk> if any
+    if '<eos>' in token_freqs:
+        del token_freqs['<eos>']
+    if '<unk>' in token_freqs:
+        del token_freqs['<unk>']
+
+    return token_freqs
+
+def write_dict(fname, vocab):
+    print("Dumping vocabulary (%d tokens) to %s..." % (len(vocab), fname))
+    with open(fname, 'wb') as f:
+        pkl.dump(vocab, f)
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(prog='build_dictionary')
     parser.add_argument('-o', '--output-dir', type=str, default='.', help='Output directory')
-    parser.add_argument('-m', '--min-freq', type=int, default=0, help='Filter out words occuring < m times.')
-    parser.add_argument('files', type=str, nargs='+', help='Text files to create dictionaries or sqlite database.')
+    parser.add_argument('-s', '--single'    , type=str, default=None,help='Name of the single vocabulary file. (default: Disabled)')
+    parser.add_argument('-m', '--min-freq'  , type=int, default=0,   help='Filter out tokens occuring < m times.')
+    parser.add_argument('files', type=str   , nargs='+',             help='Text files to create dictionaries.')
     args = parser.parse_args()
+
+    # In case it is needed
+    all_freqs = OrderedDict()
 
     for filename in args.files:
         filename = os.path.abspath(os.path.expanduser(filename))
-        vocab_fname = os.path.basename(filename)
-        if args.min_freq > 0:
-            vocab_fname += "-min%d" % args.min_freq
-        vocab_fname = os.path.join(args.output_dir, vocab_fname)
 
-        sentences = []
-        print("Reading file %s" % filename)
-        with open(filename) as f:
-            for line in f:
-                line = line.strip()
-                if line:
-                    sentences.append(line)
+        if args.single:
+            # Get cumulative frequencies
+            all_freqs = get_freqs(filename, all_freqs)
 
-        create_dict(sentences, args.min_freq, vocab_fname + '.vocab.pkl')
+        else:
+            # Get frequencies
+            freqs = get_freqs(filename)
+            # Build dictionary from frequencies
+            tokendict = freqs_to_dict(freqs, args.min_freq)
+
+            vocab_fname = os.path.basename(filename)
+            if args.min_freq > 0:
+                vocab_fname += "-min%d" % args.min_freq
+            vocab_fname = os.path.join(args.output_dir, vocab_fname)
+            vocab_fname += ".vocab.pkl"
+
+            write_dict(vocab_fname, tokendict)
+
+    if args.single:
+        tokendict = freqs_to_dict(all_freqs, args.min_freq)
+        write_dict(args.single, tokendict)

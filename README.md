@@ -61,8 +61,8 @@ A non-exhaustive list of differences between **nmtpy** and **dl4mt-tutorial** is
 ### Attentional NMT: `attention.py`
 This is the basic shallow attention based NMT from `dl4mt-tutorial` improved in different ways:
   - 3 forward dropout layers after source embeddings, source context and before softmax managed by the configuration parameters `emb_dropout, ctx_dropout, out_dropout`.
-  - Layer normalization for source encoder (`layer_norm=True|False`)
-  - Tied target embeddings (`tied_trg_emb=True|False`)
+  - Layer normalization for source encoder (`layer_norm:True|False`)
+  - Tied target embeddings (`tied_trg_emb:True|False`)
   
 This model uses the simple `BitextIterator` i.e. it directly reads plain parallel text files as defined in the experiment configuration file. Please see [this monomodal example](examples/wmt16-mmt-task1/wmt16-mmt-task1-monomodal.conf) for usage.
 
@@ -90,15 +90,11 @@ In the examples folder of this repository, you can find data and a configuration
 
 This is a basic recurrent language model to be used with `nmt-test-lm` utility.
 
-
-
-
-
 ## Requirements
 
 You need the following Python libraries installed in order to use **nmtpy**:
   - numpy
-  - Theano >= 0.8 (0.9.x would be better)
+  - Theano >= 0.9
 
 - We recommend using Anaconda Python distribution which is equipped with Intel MKL (Math Kernel Library) greatly
   improving CPU decoding speeds during beam search. With a correct compilation and installation, you should achieve
@@ -125,14 +121,9 @@ When we started to work on **dl4mt-tutorial**, we noticed an annoying reproducib
 multiple runs of the same experiment (same seed, same machine, same GPU) were not producing exactly
 the same training and validation losses after a few iterations.
 
-The first solution that was [discussed](https://github.com/Theano/Theano/issues/3029) in Theano
+The solution that was [discussed](https://github.com/Theano/Theano/issues/3029) in Theano
 issues was to replace a non-deterministic GPU operation with its deterministic equivalent. To achieve this,
-you should **patch** your local Theano installation using [this patch](patches/00-theano-advancedinctensor.patch) (or [this one](patches/00-theanov0.9-advancedinctensor.patch) for the recent master which approaches v0.9) unless upstream developers add a configuration option to `.theanorc`.
-
-But apparently this was not enough to obtain reproducible models. After debugging ~2 months, we discovered and
-[fixed](https://github.com/Theano/Theano/commit/8769382ff661aab15dda474a4c74456037f73cc6) a very insidious bug involving back-propagation in Theano.
-
-So if you care (and you absolutely should) about reproducibility, make sure your Theano copy has above changes applied. If your Theano copy is newer than *17 August 2016*, the second fix should be available in your copy.
+you should **patch** your local Theano v0.9.0 installation using [this patch](patches/00-theano-advancedinctensor.patch) unless upstream developers add a configuration option to `.theanorc`.
 
 ## Configuring Theano
 
@@ -163,16 +154,13 @@ include_path = /opt/CUDNN/cudnn-v5.1/include
 cnmem = 0.95
 ```
 
-If you have a recent Theano, you may want to try the new GPU backend after
+You may also want to try the new GPU backend after
 installing [libgpuarray](https://github.com/Theano/libgpuarray). In order to do so,
 pass `GPUARRAY=1` into the environment when running `nmt-train`:
 
 ```
 $ GPUARRAY=1 nmt-train -c <conf file> ...
 ```
-
-Note that we could not obtain accurate results using Maxwell GPUs with this backend
-so use it at your own risk.
 
 ### Checking BLAS configuration
 

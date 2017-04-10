@@ -98,6 +98,13 @@ def real_path(p):
     """Expand UNIX tilde and return real path."""
     return os.path.realpath(os.path.expanduser(p))
 
+def force_symlink(origfile, linkname):
+    try:
+        os.symlink(origfile, linkname)
+    except FileExistsError as e:
+        os.unlink(linkname)
+        os.symlink(origfile, linkname)
+
 def listify(l):
     """Encapsulate l with list[] if not."""
     return [l] if not isinstance(l, list) else l
@@ -231,8 +238,8 @@ def get_exp_identifier(train_args, model_args, suffix=None):
     # Append batch size
     name += '-bs%d' % model_args.batch_size
 
-    # Validation stuff
-    name += '-%s' % train_args.valid_metric
+    # Validation stuff (first: early-stop metric)
+    name += '-%s' % train_args.valid_metric.split(',')[0]
 
     if train_args.valid_freq > 0:
         name += "-each%d" % train_args.valid_freq
@@ -252,9 +259,6 @@ def get_exp_identifier(train_args, model_args, suffix=None):
 
     if train_args.clip_c > 0:
         name += "-gc%d" % int(train_args.clip_c)
-
-    if train_args.alpha_c > 0:
-        name += "-alpha_%.e" % train_args.alpha_c
 
     if isinstance(model_args.weight_init, str):
         name += "-init_%s" % model_args.weight_init

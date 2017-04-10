@@ -126,7 +126,7 @@ class Model(BaseModel):
         fact_bleu_str, fact_bleu = result['out2']
         self.logger.info("Out2: %s" % fact_bleu_str)
 
-        return result[metric]
+        return {metric: result[metric]}
 
     @staticmethod
     def beam_search(inputs, f_inits, f_nexts, beam_size=12, maxlen=50, suppress_unks=False, **kwargs):
@@ -399,14 +399,7 @@ class Model(BaseModel):
         self.train_iterator.read()
         self.load_valid_data()
 
-    def add_alpha_regularizer(self, alpha_c):
-        alpha_c = theano.shared(np.float64(alpha_c).astype(FLOAT), name='alpha_c')
-        alpha_reg = alpha_c * (
-            (tensor.cast(self.inputs['y_mask'].sum(0) // self.inputs['x_mask'].sum(0), FLOAT)[:, None] -
-             self.alphas.sum(0))**2).sum(1).mean()
-        return alpha_reg
-
-    ###################################################################
+   ###################################################################
     # The following methods can be redefined in child models inheriting
     # from this basic Attention model.
     ###################################################################

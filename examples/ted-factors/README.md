@@ -4,7 +4,7 @@ This system generates multiple outputs for the neural network.
 
 ## TED data 
 
-- Download [examples-ted-data.tar.bz2]() and extract it into the `data/` folder.
+- Download [examples-ted-data.tar.bz2](http://www-lium.univ-lemans.fr/~garcia/examples-ted-data.tar.bz2) and extract it into the `data/` folder.
 
 - Build the vocabulary dictionaries for each train file:
 

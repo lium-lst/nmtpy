@@ -1,32 +1,60 @@
-diff --git a/theano/sandbox/cuda/opt.py b/theano/sandbox/cuda/opt.py
-index 158a5f1..c9cf412 100644
---- a/theano/sandbox/cuda/opt.py
-+++ b/theano/sandbox/cuda/opt.py
-@@ -38,7 +38,7 @@ from theano.sandbox.cuda.basic_ops import (
-     GpuElemwise, GpuDimShuffle, GpuReshape, GpuCAReduce,
-     gpu_flatten,
-     GpuSubtensor, GpuAdvancedSubtensor1,
--    GpuAdvancedIncSubtensor1, GpuAdvancedIncSubtensor1_dev20,
-+    GpuAdvancedIncSubtensor1,
-     GpuIncSubtensor, gpu_alloc, GpuAlloc, gpu_shape, GpuSplit, GpuAllocEmpty)
+--- theano/sandbox/cuda/opt.py	2017-03-21 18:45:53.532335945 +0100
++++ theano/sandbox/cuda/opt.py	2017-03-21 18:45:53.532335945 +0100
+@@ -1111,7 +1111,7 @@
  
- from theano.sandbox.cuda.type import CudaNdarrayType
-@@ -1134,7 +1134,8 @@ def local_gpu_advanced_incsubtensor1(node):
-                 gpu_op = GpuAdvancedIncSubtensor1(
-                     set_instead_of_inc=set_instead_of_inc)
+                 gpu_op = GpuAdvancedIncSubtensor1(**props_dict)
              else:
--                gpu_op = GpuAdvancedIncSubtensor1_dev20(
-+                # Non deterministic
-+                gpu_op = GpuAdvancedIncSubtensor1(
-                     set_instead_of_inc=set_instead_of_inc)
+-                gpu_op = GpuAdvancedIncSubtensor1_dev20(**props_dict)
++                gpu_op = GpuAdvancedIncSubtensor1(**props_dict)
              return [gpu_op(as_cuda_ndarray_variable(x),
                             as_cuda_ndarray_variable(y), *coords)]
-@@ -1174,7 +1175,7 @@ def local_gpu_advanced_incsubtensor1(node):
-                 gpu_op = GpuAdvancedIncSubtensor1(
-                     set_instead_of_inc=set_instead_of_inc)
+ 
+@@ -1149,7 +1149,7 @@
+             if (compute_capability < 2 or y.ndim != 2 or x.ndim != 2):
+                 gpu_op = GpuAdvancedIncSubtensor1(**node.op._props_dict())
              else:
--                gpu_op = GpuAdvancedIncSubtensor1_dev20(
-+                gpu_op = GpuAdvancedIncSubtensor1(
-                     set_instead_of_inc=set_instead_of_inc)
+-                gpu_op = GpuAdvancedIncSubtensor1_dev20(**node.op._props_dict())
++                gpu_op = GpuAdvancedIncSubtensor1(**node.op._props_dict())
              return [host_from_gpu(gpu_op(gpu_x, gpu_y, *coords))]
      return False
+ 
+--- theano/gpuarray/opt.py	2017-03-21 18:42:35.589317691 +0100
++++ theano/gpuarray/opt.py	2017-03-21 18:42:35.589317691 +0100
+@@ -68,8 +68,7 @@
+ from .subtensor import (GpuIncSubtensor, GpuSubtensor,
+                         GpuAdvancedSubtensor,
+                         GpuAdvancedSubtensor1,
+-                        GpuAdvancedIncSubtensor1,
+-                        GpuAdvancedIncSubtensor1_dev20)
++                        GpuAdvancedIncSubtensor1)
+ from .opt_util import alpha_merge, output_merge, pad_dims, unpad_dims
+ from .reduction import GpuMaxAndArgmax
+ from .linalg import (GpuCusolverSolve, cusolver_available)
+@@ -1056,7 +1055,7 @@
+     if compute_capability >= 2 and x.ndim == 1 and y.ndim == 0:
+         x = x.dimshuffle(0, 'x')
+         y = y.dimshuffle('x', 'x')
+-        ret = GpuAdvancedIncSubtensor1_dev20(
++        ret = GpuAdvancedIncSubtensor1(
+             set_instead_of_inc=set_instead_of_inc)(x, y, ilist)
+         ret = GpuDimShuffle(ret.type.broadcastable, [0])(ret)
+         return ret
+@@ -1064,15 +1063,14 @@
+         return GpuAdvancedIncSubtensor1(
+             set_instead_of_inc=set_instead_of_inc)
+     else:
+-        return GpuAdvancedIncSubtensor1_dev20(
++        return GpuAdvancedIncSubtensor1(
+             set_instead_of_inc=set_instead_of_inc)
+ 
+ 
+ @register_inplace()
+-@local_optimizer([GpuAdvancedIncSubtensor1, GpuAdvancedIncSubtensor1_dev20])
++@local_optimizer([GpuAdvancedIncSubtensor1])
+ def local_advincsub1_gpua_inplace(node):
+-    if isinstance(node.op, (GpuAdvancedIncSubtensor1,
+-                            GpuAdvancedIncSubtensor1_dev20)):
++    if isinstance(node.op, (GpuAdvancedIncSubtensor1,)):
+         if not node.op.inplace:
+             return [node.op.clone_inplace()(*node.inputs)]
+ 

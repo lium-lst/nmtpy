@@ -1,0 +1,40 @@
+#!/bin/bash
+
+# Usage:
+#  1. Put this script under your $USER/bin or $USER/.local/bin or whatever
+#  2. Set NMTPY to your nmtpy copy where you do your development
+#  3. Start training by prefixing your command with snaprun:
+#   $ snaprun nmt-train -c foobar.conf
+
+# Source tree to use as nmtpy
+NMTPY=
+
+# Enter to $NMTPY
+pushd $NMTPY
+
+# Take the last commit SHA1
+SHA=`git rev-parse --short HEAD`
+
+SUFFIX=`uuidgen -t`
+
+# Export to the following folder
+SNAPSHOT="/tmp/nmtpy-${USER}-${SHA}-${SUFFIX}"
+
+# Take a snapshot of the source tree by cleaning unnecessary stuff
+rsync --exclude=*egg-info --exclude=*pycache* --exclude "*.git*" -a . $SNAPSHOT
+
+# Show code folder
+echo "Took snapshot under $SNAPSHOT"
+
+# Set PATH to use the new /bin to find nmt-*
+# and override default python search path list by giving this
+# new path as the first item.
+export PATH=${SNAPSHOT}/bin:${PATH}
+export PYTHONPATH=$SNAPSHOT
+
+popd
+# Execute the given command
+$@
+
+# Remove the folder
+rm -rf $SNAPSHOT
