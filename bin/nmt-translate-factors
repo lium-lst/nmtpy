@@ -398,9 +398,9 @@ class Translator(object):
         for scorer in scorers:
             c = get_scorer(scorer)()
             score = c.compute(self.ref_files[1], hyp_files[0])
-            results['out1'] = (str(score), score.score)
+            results['bleu_out1'] = (str(score), score.score)
             score_fact = c.compute(self.ref_files[2], hyp_files[1])
-            results['out2'] = (str(score_fact), score_fact.score)
+            results['bleu_out2'] = (str(score_fact), score_fact.score)
             if args.factors == 'evalf' or self.models[0].valid_ref_files == self.ref_files[1]:
                 #results[scorer] = (str(score), 2*score.score+score_fact.score)
                 results[scorer] = (str(score), score.score)

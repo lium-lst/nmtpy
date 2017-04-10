@@ -238,13 +238,6 @@ class MainLoop(object):
                     # Create a link towards best hypothesis file
                     if self.factors:
                         # For factors mode is compulsary to save those files to call the script to combine them
-#                        f_best_lem = "%s.BEST.lem" % os.path.splitext(f_valid_out+'.lem')[0]
-#                        f_best_fact = "%s.BEST.fact" % os.path.splitext(f_valid_out+'.fact')[0]
-#                        if os.path.exists(f_best_lem):
-#                            os.unlink(f_best_lem)
-#                            os.unlink(f_best_fact)
-#                        os.symlink(f_valid_out+'.lem', f_best_lem)
-#                        os.symlink(f_valid_out+'.fact', f_best_fact)
                         force_symlink(f_valid_out+'.lem', '%s.BEST.lem' % self.valid_save_prefix)
                         force_symlink(f_valid_out+'.fact', '%s.BEST.fact' % self.valid_save_prefix)
                     else:

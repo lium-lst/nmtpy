@@ -123,9 +123,9 @@ class Model(BaseModel):
                                           valid_mode=valid_mode,
                                           f_valid_out=f_valid_out,
                                           factors=self.factors)
-        lem_bleu_str, lem_bleu = result['out1']
+        lem_bleu_str, lem_bleu = result['bleu_out1']
         self.logger.info("Out1: %s" % lem_bleu_str)
-        fact_bleu_str, fact_bleu = result['out2']
+        fact_bleu_str, fact_bleu = result['bleu_out2']
         self.logger.info("Out2: %s" % fact_bleu_str)
 
         return {metric: result[metric]}
