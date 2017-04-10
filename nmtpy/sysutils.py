@@ -138,7 +138,7 @@ def get_valid_evaluation(save_path, beam_size, n_jobs, mode, metric,
            "-j", str(n_jobs), "-m", save_path, "-M", metric, "-v", valid_mode]
     # Factors option needs -fa option with the script and 2 output files
     if factors:
-        cmd.extend(["-fa", factors, "-o", f_valid_out[0], f_valid_out[1]])
+        cmd.extend(["-fa", factors, "-o", f_valid_out+'.lem', f_valid_out+'.fact'])
 
     elif f_valid_out is not None:
         cmd.extend(["-o", f_valid_out])

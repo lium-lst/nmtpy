@@ -39,6 +39,7 @@ class MainLoop(object):
         self.do_sampling    = self.f_sample > 0
         self.do_beam_search = self.valid_metric != 'px'
 
+        self.factors        = model_args.factors
         self.save_path      = model_args.save_path
 
         # NOTE: This is relevant only for fusion models + WMTIterator
@@ -212,10 +213,20 @@ class MainLoop(object):
             if self._is_best(cur_loss, metric):
                 # Create a link towards best hypothesis file
                 if self.valid_save_hyp:
-                    f_best = "%s.BEST" % os.path.splitext(f_valid_out)[0]
-                    if os.path.exists(f_best):
-                        os.unlink(f_best)
-                    os.symlink(f_valid_out, f_best)
+                    if self.factors:
+                        f_best_lem = "%s.BEST.lem" % os.path.splitext(f_valid_out+'.lem')[0]
+                        print ('f_best_lem:', f_best_lem)
+                        f_best_fact = "%s.BEST.fact" % os.path.splitext(f_valid_out+'.fact')[0]
+                        if os.path.exists(f_best_lem):
+                            os.unlink(f_best_lem)
+                            os.unlink(f_best_fact)
+                        os.symlink(f_valid_out+'.lem', f_best_lem)
+                        os.symlink(f_valid_out+'.fact', f_best_fact)
+                    else:
+                        f_best = "%s.BEST" % os.path.splitext(f_valid_out)[0]
+                        if os.path.exists(f_best):
+                            os.unlink(f_best)
+                        os.symlink(f_valid_out, f_best)
 
                 self.save_best_model()
                 self.early_bad = 0
