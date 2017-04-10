@@ -9,6 +9,7 @@ MODEL_DEFAULTS = {
         'batch_size':         32,             # Training batch size
         'optimizer':          'adam',         # adadelta, sgd, rmsprop, adam
         'lrate':              0.0004,         # Initial learning rate
+        'factors':            None,           # Factors option to have 2 outputs
         }
 
 TRAIN_DEFAULTS = {
