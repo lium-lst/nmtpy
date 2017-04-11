@@ -236,7 +236,8 @@ def param_init_gru(params, nin, dim, scale=0.01, prefix='gru', layernorm=False):
 
     return params
 
-def gru_layer(tparams, state_below, prefix='gru', mask=None, init_states=None, layernorm=False):
+def gru_layer(tparams, state_below, prefix='gru', mask=None, init_states=None,
+              layernorm=False, truncate_grads=-1):
     nsteps = state_below.shape[0]
 
     # if we are dealing with a mini-batch
@@ -283,6 +284,7 @@ def gru_layer(tparams, state_below, prefix='gru', mask=None, init_states=None, l
                                 non_sequences=shared_vars,
                                 name=pp(prefix, '_layers'),
                                 n_steps=nsteps,
+                                truncate_gradient=truncate_grads,
                                 strict=True)
     rval = [rval]
     return rval
@@ -326,7 +328,8 @@ def param_init_gru_cond(params, nin, dim, dimctx, scale=0.01, prefix='gru_cond',
     return params
 
 def gru_cond_layer(tparams, state_below, context, prefix='gru_cond',
-                   mask=None, one_step=False, init_state=None, context_mask=None, layernorm=False):
+                   mask=None, one_step=False, init_state=None, context_mask=None,
+                   layernorm=False, truncate_grads=-1):
     if one_step:
         assert init_state, 'previous state must be provided'
 
@@ -500,6 +503,7 @@ def gru_cond_layer(tparams, state_below, context, prefix='gru_cond',
                                     non_sequences=[pctx_, context] + shared_vars,
                                     name=pp(prefix, '_layers'),
                                     n_steps=nsteps,
+                                    truncate_gradient=truncate_grads,
                                     strict=True)
     return rval
 
