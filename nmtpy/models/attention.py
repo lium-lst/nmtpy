@@ -120,7 +120,7 @@ class Model(BaseModel):
         # Beginning-of-sentence indicator is -1
         next_w = -1 * np.ones((1,), dtype=INT)
 
-        # NOTE: This will break if [0] is not the src sentence.
+        # FIXME: This will break if [0] is not the src sentence, e.g. im2txt models
         maxlen = max(maxlen, inputs[0].shape[0] * 3)
 
         # Initial beam size
@@ -222,7 +222,8 @@ class Model(BaseModel):
         self.logger.info('Source vocabulary size: %d', self.n_words_src)
         self.logger.info('Target vocabulary size: %d', self.n_words_trg)
         self.logger.info('%d training samples' % self.train_iterator.n_samples)
-        self.logger.info('%d validation samples' % self.valid_iterator.n_samples)
+        if 'valid_src' in self.data:
+            self.logger.info('%d validation samples' % self.valid_iterator.n_samples)
         self.logger.info('dropout (emb,ctx,out): %.2f, %.2f, %.2f' % (self.emb_dropout, self.ctx_dropout, self.out_dropout))
 
     def load_valid_data(self, from_translate=False):
@@ -258,7 +259,8 @@ class Model(BaseModel):
 
         # Prepare batches
         self.train_iterator.read()
-        self.load_valid_data()
+        if 'valid_src' in self.data:
+            self.load_valid_data()
 
     ###################################################################
     # The following methods can be redefined in child models inheriting
