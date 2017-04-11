@@ -50,7 +50,7 @@ class BaseModel(object, metaclass=ABCMeta):
         self.learning_rate  = None
 
     @staticmethod
-    def beam_search(inputs, f_inits, f_nexts, beam_size=12, maxlen=50, suppress_unks=False, **kwargs):
+    def beam_search(inputs, f_inits, f_nexts, beam_size=12, maxlen=100, suppress_unks=False, **kwargs):
         # Override this from your classes
         pass
 
@@ -218,7 +218,7 @@ class BaseModel(object, metaclass=ABCMeta):
         # Return every available metric back
         return result
 
-    def gen_sample(self, input_dict, maxlen=50, argmax=False):
+    def gen_sample(self, input_dict, maxlen=100, argmax=False):
         """Generate samples, do greedy (argmax) decoding or forced decoding."""
         # A method that samples or takes the max proba's or
         # does a forced decoding depending on the parameters.
