@@ -167,6 +167,7 @@ class Translator(object):
                 # Pass the files to the model
                 # NOTE: Not quite model agnostic way of doing things.
                 self.models[0].data['valid_src'] = self.src_files[0]
+                self.models[0].data['valid_trg'] = self.ref_files
                 if 'valid_img' in self.models[0].data:
                     self.models[0].data['valid_img'] = self.src_files[1]
 
