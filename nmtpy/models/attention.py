@@ -87,7 +87,7 @@ class Model(BaseModel):
         self.logger = logger
 
     @staticmethod
-    def beam_search(inputs, f_inits, f_nexts, beam_size=12, maxlen=50, suppress_unks=False, **kwargs):
+    def beam_search(inputs, f_inits, f_nexts, beam_size=12, maxlen=100, suppress_unks=False, **kwargs):
         # Final results and their scores
         final_sample        = []
         final_score         = []
@@ -120,9 +120,8 @@ class Model(BaseModel):
         # Beginning-of-sentence indicator is -1
         next_w = -1 * np.ones((1,), dtype=INT)
 
-        # maxlen or 3 times source length
         # NOTE: This will break if [0] is not the src sentence.
-        maxlen = min(maxlen, inputs[0].shape[0] * 3)
+        maxlen = max(maxlen, inputs[0].shape[0] * 3)
 
         # Initial beam size
         live_beam = beam_size
