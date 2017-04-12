@@ -26,6 +26,10 @@ def get_scorer(scorer):
 
 def is_last_best(name, history):
     """Checks whether the last element is the best score so far."""
+    if len(history) == 1:
+        # If first validation, return True to save it
+        return True
+
     new_value = history[-1]
     if name in ['bleu', 'meteor', 'cider', 'rouge']:
         # bigger is better
