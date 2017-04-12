@@ -143,7 +143,7 @@ class MainLoop(object):
     def __update_lrate(self):
         """Update learning rate by annealing it."""
         pass
-    
+
     def __train_epoch(self):
         """Train a full epoch."""
         self.ectr += 1
@@ -226,36 +226,50 @@ class MainLoop(object):
             cur_loss = self.model.val_loss()
             self.model.set_dropout(True)
 
-            # Add the metric
+            # Add val_loss
             self.valid_metrics['loss'].append(cur_loss)
 
-            # Are we doing translation?
+            # Print validation loss
+            self.__print("Validation %2d - LOSS = %.3f (PPL: %.3f)" % (self.vctr, cur_loss, np.exp(cur_loss)))
+
+            #############################
+            # Are we doing beam search? #
+            #############################
             if self.beam_metrics:
+                beam_results = None
                 # Save beam search results?
                 f_valid_out = None
+
                 if self.valid_save_hyp:
                     f_valid_out = "{0}.{1:03d}".format(self.valid_save_prefix, self.vctr)
 
-                metrics = self.model.run_beam_search(beam_size=self.beam_size,
-                                                     n_jobs=self.njobs,
-                                                     metric=self.beam_metrics,
-                                                     mode='beamsearch',
-                                                     valid_mode=self.valid_mode,
-                                                     f_valid_out=f_valid_out)
+                self.__print('Calling beam-search process')
+                beam_time = time.time()
+                beam_results = self.model.run_beam_search(beam_size=self.beam_size,
+                                                          n_jobs=self.njobs,
+                                                          metric=self.beam_metrics,
+                                                          mode='beamsearch',
+                                                          valid_mode=self.valid_mode,
+                                                          f_valid_out=f_valid_out)
+                beam_time = time.time() - beam_time
+                self.__print('Beam-search ended, took %.5f minutes.' % (beam_time / 60.))
 
-                # metrics: {name: (metric_str, metric_float)}
-                # names are as defined in metrics/*.py like BLEU, METEOR
-                # but we use lowercase names in conf files.
-                self.__send_stats(self.vctr, **metrics)
-                for name, (metric_str, metric_value) in metrics.items():
-                    self.__print("Validation %2d - %s" % (self.vctr, metric_str))
-                    self.valid_metrics[name.lower()].append(metric_value)
-
-            self.__print("Validation %2d - LOSS = %.3f (PPL: %.3f)" % (self.vctr, cur_loss, np.exp(cur_loss)))
+                if beam_results:
+                    # beam_results: {name: (metric_str, metric_float)}
+                    # names are as defined in metrics/*.py like BLEU, METEOR
+                    # but we use lowercase names in conf files.
+                    self.__send_stats(self.vctr, **beam_results)
+                    for name, (metric_str, metric_value) in beam_results.items():
+                        self.__print("Validation %2d - %s" % (self.vctr, metric_str))
+                        self.valid_metrics[name.lower()].append(metric_value)
+                else:
+                    self.__print('Skipping this validation since nmt-translate probably failed.')
+                    # Return back to training loop since nmt-translate did not run correctly.
+                    # This will allow to fix your model's build_sampler while training continues.
+                    return
 
             # Is this the best evaluation based on early-stop metric?
-            if self.vctr == 1 or \
-                    is_last_best(self.early_metric, self.valid_metrics[self.early_metric]):
+            if is_last_best(self.early_metric, self.valid_metrics[self.early_metric]):
                 if self.valid_save_hyp:
                     # Create a link towards best hypothesis file
                     force_symlink(f_valid_out, '%s.BEST' % self.valid_save_prefix)
