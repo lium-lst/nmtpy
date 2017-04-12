@@ -20,7 +20,6 @@ from nmtpy.mainloop import MainLoop
 
 # Ensure cleaning up temp files and processes
 import nmtpy.cleanup as cleanup
-cleanup.register_handler()
 
 # Import defaults
 from nmtpy.defaults import TRAIN_DEFAULTS as trdefs
@@ -123,6 +122,12 @@ if __name__ == '__main__':
     if not nolog:
         log_fname = os.path.join(model_args.save_path,
                                 "%s.%d.log" % (exp_id, run_id))
+
+    # Start logging module (both to terminal and to file)
+    Logger.setup(log_file=log_fname, timestamp=tstamp)
+    log = Logger.get()
+    cleanup.register_handler(log)
+
     # Update save_path
     model_args.save_path = os.path.join(model_args.save_path,
                                         "%s.%d" % (exp_id, run_id))
@@ -130,12 +135,8 @@ if __name__ == '__main__':
     # ensure valid hyps folder if valid_save_hyp is activated
     if train_args.valid_save_hyp is True:
         ensure_dirs([model_args.save_path+'.valid_hyps'])
+
     ###################################
-
-    # Start logging module (both to terminal and to file)
-    Logger.setup(log_file=log_fname, timestamp=tstamp)
-    log = Logger.get()
-
     # Set device for Theano
     if 'THEANO_FLAGS' not in os.environ:
         train_args.device_id = get_device(train_args.device_id)
@@ -162,12 +163,7 @@ if __name__ == '__main__':
     print_summary(train_args, model_args, print_func=log.info)
 
     # Import the model
-    try:
-       Model = importlib.import_module("nmtpy.models.%s" % train_args.model_type).Model
-    except ImportError as e:
-        log.error("Error while importing %s" % train_args.model_type)
-        log.error(e)
-        sys.exit(1)
+    Model = importlib.import_module("nmtpy.models.%s" % train_args.model_type).Model
 
     # Create model object
     # Save model_type into the model as well
