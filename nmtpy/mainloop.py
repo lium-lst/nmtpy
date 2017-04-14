@@ -58,9 +58,8 @@ class MainLoop(object):
 
             # Setup validation hypotheses folder name
             if self.valid_save_hyp:
-                base_folder = os.path.basename(self.model.save_path)
-                hyps_folder = self.model.save_path + '.valid_hyps'
-                self.valid_save_prefix = os.path.join(base_folder, hyps_folder)
+                base_folder = self.model.save_path + '.valid_hyps'
+                self.valid_save_prefix = os.path.join(base_folder, os.path.basename(self.model.save_path))
 
             # Requested metrics, replace px with loss
             metrics = train_args.valid_metric.replace('px', 'loss').split(',')
@@ -132,7 +131,7 @@ class MainLoop(object):
             self.model.save(cur_fname)
 
             # Create a .BEST symlink
-            force_symlink(cur_fname, '%s.BEST.npz' % self.model.save_path)
+            force_symlink(cur_fname, ('%s.BEST.npz' % self.model.save_path), relative=True)
 
             # In the next best, we'll remove the following idx from the list/disk
             # Metric specific comparator stuff
@@ -272,7 +271,7 @@ class MainLoop(object):
             if is_last_best(self.early_metric, self.valid_metrics[self.early_metric]):
                 if self.valid_save_hyp:
                     # Create a link towards best hypothesis file
-                    force_symlink(f_valid_out, '%s.BEST' % self.valid_save_prefix)
+                    force_symlink(f_valid_out, '%s.BEST' % self.valid_save_prefix, relative=True)
 
                 self.__save_best_model()
                 self.early_bad = 0
