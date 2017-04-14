@@ -98,7 +98,9 @@ def real_path(p):
     """Expand UNIX tilde and return real path."""
     return os.path.realpath(os.path.expanduser(p))
 
-def force_symlink(origfile, linkname):
+def force_symlink(origfile, linkname, relative=False):
+    if relative:
+        origfile = os.path.basename(origfile)
     try:
         os.symlink(origfile, linkname)
     except FileExistsError as e:
