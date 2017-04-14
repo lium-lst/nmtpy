@@ -13,6 +13,7 @@ import json
 import inspect
 import argparse
 import importlib
+import traceback
 from multiprocessing import Process, Queue, cpu_count
 
 from collections import OrderedDict
@@ -30,7 +31,7 @@ from nmtpy.defaults         import INT, FLOAT
 import nmtpy.cleanup as cleanup
 
 # Setup the logger
-Logger.setup()
+Logger.setup(timestamp=False)
 log = Logger.get()
 
 # This is to avoid thread explosion. Allow
@@ -43,48 +44,49 @@ os.environ["THEANO_FLAGS"] = "device=cpu,optimizer_including=local_remove_all_as
 
 """Worker process which does beam search."""
 def translate_model(rqueue, wqueue, pid, models, beam_size, nbest, suppress_unks, get_att_alphas=False, seed=1234, mode="beamsearch"):
-    # Get the method handle
-    beam_search = models[0].beam_search
+    try:
+        # Get the method handle
+        beam_search = models[0].beam_search
 
-    # Get function call string
-    if mode == "beamsearch":
-        f_inits     = [m.f_init for m in models]
-        f_nexts     = [m.f_next for m in models]
-        func_call = 'beam_search(list(data_dict.values()), f_inits, f_nexts, beam_size=beam_size, get_att_alphas=%s, suppress_unks=%s)' % (get_att_alphas, suppress_unks)
+        # Get function call string
+        if mode == "beamsearch":
+            f_inits     = [m.f_init for m in models]
+            f_nexts     = [m.f_next for m in models]
+            func_call = 'beam_search(list(data_dict.values()), f_inits, f_nexts, beam_size=beam_size, get_att_alphas=%s, suppress_unks=%s)' % (get_att_alphas, suppress_unks)
 
-    elif mode in ["forced", "sample"]:
-        func_call = 'model.gen_sample(data_dict)'
+        elif mode in ["forced", "sample"]:
+            func_call = 'model.gen_sample(data_dict)'
 
-    elif mode == "argmax":
-        func_call = 'model.gen_sample(data_dict, argmax=True)'
+        elif mode == "argmax":
+            func_call = 'model.gen_sample(data_dict, argmax=True)'
 
-    while True:
-        # Get a sample
-        req = rqueue.get()
+        while True:
+            # Get a sample
+            req = rqueue.get()
 
-        # NOTE: We should avoid this
-        if req is None:
-            break
+            # Unpack sample idx and data_dict
+            sample_idx, data_dict = req[0], req[1]
 
-        # Unpack sample idx and data_dict
-        sample_idx, data_dict = req[0], req[1]
+            # Get the translation, its score and alignments
+            trans, score, align = eval(func_call)
 
-        # Get the translation, its score and alignments
-        trans, score, align = eval(func_call)
+            # normalize scores according to sequence lengths
+            score = score / np.array([len(s) for s in trans])
 
-        # normalize scores according to sequence lengths
-        score = score / np.array([len(s) for s in trans])
+            # Sort the scores and take the best(s) idx(s)
+            best_idxs = np.argsort(score)[:nbest]
+            trans = np.array(trans)[best_idxs]
 
-        # Sort the scores and take the best(s) idx(s)
-        best_idxs = np.argsort(score)[:nbest]
-        trans = np.array(trans)[best_idxs]
+            # Check for attention weights
+            if align is not None:
+                align = np.array(align)[best_idxs]
 
-        # Check for attention weights
-        if align is not None:
-            align = np.array(align)[best_idxs]
-
-        # Send response back
-        wqueue.put((sample_idx, trans, score[best_idxs], align))
+            # Send response back
+            wqueue.put((sample_idx, trans, score[best_idxs], align))
+    except Exception as e:
+        traceback.print_exc()
+        # Signal error back
+        wqueue.put(None)
 
 class Translator(object):
     """Starts worker processes and waits for the results."""
@@ -224,7 +226,8 @@ class Translator(object):
             self.processes[idx].start()
             cleanup.register_proc(self.processes[idx].pid)
 
-        cleanup.register_handler()
+        # Register the created processes to clean them after
+        cleanup.register_handler(log)
 
         # Send data to worker processes
         for idx in range(self.n_sentences):
@@ -245,6 +248,11 @@ class Translator(object):
         for i in range(self.n_sentences):
             # Get response from worker
             resp = read_queue.get()
+
+            if resp is None:
+                # Worker(s) failed
+                log.info('One or more of the workers failed, exiting.')
+                sys.exit(1)
 
             # This is the sample id of the processed sample
             sample_idx = resp[0]
@@ -280,9 +288,7 @@ class Translator(object):
 
         # Stop workers
         for pidx in range(self.n_jobs):
-            write_queue.put(None)
             self.processes[pidx].terminate()
-            cleanup.unregister_proc(self.processes[pidx].pid)
 
     def write_hyps(self, filename, dump_scores=False):
         # Apply post-processing filters like compound stitching
@@ -429,3 +435,6 @@ if __name__ == "__main__":
             and translator.ref_files and not args.score:
         # Compute metrics and print them. Printing is necessary for nmt-train
         print(translator.compute_metrics(out_file, args.metrics.split(",")))
+
+    # Report success
+    sys.exit(0)
