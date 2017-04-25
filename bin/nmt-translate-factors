@@ -13,6 +13,7 @@ import json
 import inspect
 import argparse
 import importlib
+import traceback
 from multiprocessing import Process, Queue, cpu_count
 
 from collections import OrderedDict
@@ -32,69 +33,69 @@ from nmtpy.defaults         import INT, FLOAT
 import nmtpy.cleanup as cleanup
 
 # Setup the logger
-Logger.setup()
+Logger.setup(timestamp=False)
 log = Logger.get()
 
 """Worker process which does beam search."""
 def translate_model(rqueue, wqueue, pid, models, beam_size, nbest, suppress_unks, get_att_alphas=False, seed=1234, mode="beamsearch"):
     # Get the method handle
     beam_search = models[0].beam_search
+    try:
+        # Get function call string
+        if mode == "beamsearch":
+            f_inits     = [m.f_init for m in models]
+            f_nexts     = [m.f_next for m in models]
+            func_call = 'beam_search(list(data_dict.values()), f_inits, f_nexts, beam_size=beam_size, get_att_alphas=%s, suppress_unks=%s)' % (get_att_alphas, suppress_unks)
 
-    # Get function call string
-    if mode == "beamsearch":
-        f_inits     = [m.f_init for m in models]
-        f_nexts     = [m.f_next for m in models]
-        func_call = 'beam_search(list(data_dict.values()), f_inits, f_nexts, beam_size=beam_size, get_att_alphas=%s, suppress_unks=%s)' % (get_att_alphas, suppress_unks)
+        elif mode in ["forced", "sample"]:
+            func_call = 'model.gen_sample(data_dict)'
 
-    elif mode in ["forced", "sample"]:
-        func_call = 'model.gen_sample(data_dict)'
+        elif mode == "argmax":
+            func_call = 'model.gen_sample(data_dict, argmax=True)'
 
-    elif mode == "argmax":
-        func_call = 'model.gen_sample(data_dict, argmax=True)'
+        while True:
+            # Get a sample
+            req = rqueue.get()
 
-    while True:
-        # Get a sample
-        req = rqueue.get()
+            # Unpack sample idx and data_dict
+            sample_idx, data_dict = req[0], req[1]
 
-        # NOTE: We should avoid this
-        if req is None:
-            break
+            # Get the translation, its score and alignments
+            #trans, score, align = eval(func_call)
+            resp = eval(func_call)
 
-        # Unpack sample idx and data_dict
-        sample_idx, data_dict = req[0], req[1]
+            if args.factors:
+                # normalize scores according to sequence lengths
+                trans, score, align, trans_fact = resp
 
-        # Get the translation, its score and alignments
-        #trans, score, align = eval(func_call)
-        resp = eval(func_call)
+                score = score / np.array([len(s) for s in trans])
 
-        if args.factors:
-            # normalize scores according to sequence lengths
-            trans, score, align, trans_fact = resp
+                # Sort the scores and take the best(s) idx(s)
+                best_idxs = np.argsort(score)[:nbest]
+                trans = np.array(trans)[best_idxs]
+                trans_fact = np.array(trans_fact)[best_idxs]
+            else:
+                trans, score, align = resp
+                # normalize scores according to sequence lengths
+                score = score / np.array([len(s) for s in trans])
 
-            score = score / np.array([len(s) for s in trans])
+                # Sort the scores and take the best(s) idx(s)
+                best_idxs = np.argsort(score)[:nbest]
+                trans = np.array(trans)[best_idxs]
 
-            # Sort the scores and take the best(s) idx(s)
-            best_idxs = np.argsort(score)[:nbest]
-            trans = np.array(trans)[best_idxs]
-            trans_fact = np.array(trans_fact)[best_idxs]
-        else:
-            trans, score, align = resp
-            # normalize scores according to sequence lengths
-            score = score / np.array([len(s) for s in trans])
+            # Check for attention weights
+            if align is not None:
+                align = np.array(align)[best_idxs]
 
-            # Sort the scores and take the best(s) idx(s)
-            best_idxs = np.argsort(score)[:nbest]
-            trans = np.array(trans)[best_idxs]
-
-        # Check for attention weights
-        if align is not None:
-            align = np.array(align)[best_idxs]
-
-        # Send response back
-        if args.factors:
-            wqueue.put((sample_idx, trans, score[best_idxs], align, trans_fact))
-        else:
-            wqueue.put((sample_idx, trans, score[best_idxs], align))
+            # Send response back
+            if args.factors:
+                wqueue.put((sample_idx, trans, score[best_idxs], align, trans_fact))
+            else:
+                wqueue.put((sample_idx, trans, score[best_idxs], align))
+    except Exception as e:
+        traceback.print_exc()
+        # Signal error back
+        wqueue.put(None)
 
 class Translator(object):
     """Starts worker processes and waits for the results."""
@@ -282,7 +283,8 @@ class Translator(object):
             self.processes[idx].start()
             cleanup.register_proc(self.processes[idx].pid)
 
-        cleanup.register_handler()
+        # Register the created processes to clean them after
+        cleanup.register_handler(log)
 
         # Send data to worker processes
         for idx in range(self.n_sentences):
@@ -306,6 +308,11 @@ class Translator(object):
             # Get response from worker
             resp = read_queue.get()
 
+            if resp is None:
+                # Worker(s) failed
+                log.info('One or more of the workers failed, exiting.')
+                sys.exit(1)
+
             # This is the sample id of the processed sample
             sample_idx = resp[0]
 
@@ -315,7 +322,7 @@ class Translator(object):
             # Did we receive attention weights from beam search?
             if attw is not None:
                 self.att_weights[sample_idx] = attw[0]
-            
+
             # Place the hypotheses into their relevant places
             self.trans[sample_idx] = [idx_to_sent(self.trg_idict, hyp) for hyp in hyps]
             if args.factors:
@@ -342,15 +349,13 @@ class Translator(object):
 
         # Stop workers
         for pidx in range(self.n_jobs):
-            write_queue.put(None)
             self.processes[pidx].terminate()
-            cleanup.unregister_proc(self.processes[pidx].pid)
 
     # TODO give the translation as parameter
     def write_hyps(self, filename, n_out, dump_scores=False):
         if n_out == 1:
             trans = self.trans
-        else: 
+        else:
             trans = self.trans_fact
         # Apply post-processing filters like compound stitching
         for i in range(len(trans)):
@@ -392,7 +397,7 @@ class Translator(object):
             results[scorer] = (str(score), score.score)
         self.results = results
         return results
-    
+
     def compute_fact_score(self, hyp_files, scorers):
         results = {}
         for scorer in scorers:
@@ -410,7 +415,7 @@ class Translator(object):
                 score = c.compute(args.factors, hyp_files[0], hyp_files[1], self.ref_files[0])
                 results[scorer] = (str(score), score.score)
         return results
-    
+
     def dump_json(self, filename):
         """Export decoding data into json for further visualization."""
         metadata = OrderedDict()
@@ -552,4 +557,5 @@ if __name__ == "__main__":
         # NOTE: This dict is expected from nmt-translate for obtaining the validation results.
         print(results)
 
+    # Report success
     sys.exit(0)

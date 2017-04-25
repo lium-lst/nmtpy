@@ -98,7 +98,9 @@ def real_path(p):
     """Expand UNIX tilde and return real path."""
     return os.path.realpath(os.path.expanduser(p))
 
-def force_symlink(origfile, linkname):
+def force_symlink(origfile, linkname, relative=False):
+    if relative:
+        origfile = os.path.basename(origfile)
     try:
         os.symlink(origfile, linkname)
     except FileExistsError as e:
@@ -155,8 +157,14 @@ def get_valid_evaluation(save_path, beam_size, n_jobs, mode, metric,
     cleanup.register_proc(p.pid)
     out, err = p.communicate()
     cleanup.unregister_proc(p.pid)
-    results = eval(out.splitlines()[-1].strip())
-    return results
+
+    # Return None if nmt-translate failed
+    if p.returncode != 0:
+        return None
+
+    out = out.splitlines()[-1]
+    # Convert metrics back to dict
+    return eval(out.strip())
 
 def create_gpu_lock(used_gpu):
     """Create a lock file for GPU reservation."""
