@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 # Python
-from collections import OrderedDict
+from collections import OrderedDict, defaultdict
 import tempfile
 import os
 
@@ -83,6 +83,28 @@ class Model(BaseModel):
             # Load them from pkl files
             self.trgfact_dict, trgfact_idict = load_dictionary(kwargs['dicts']['trg2'])
 
+        # Load constraints on factor predictions (Franck).
+        # The loaded file contains on each line elements
+        # separated by space. The 1st element is the lemma,
+        # all others are allowed factors for the lemma. Ex.:
+        # dog noun+singular noun+plural
+        global fact_constraints
+        fact_constraints = defaultdict(lambda: np.array(range(len(trgfact_idict))))
+        try:
+            # Set the path to file with factor constraints
+            const_file = open('/users/limsi_nmt/burlot/prog/wmt17/constraints.en2cx.bpe')
+        except FileNotFoundError:
+            print("File with factor constraints not found: unconstrained search")
+            const_file = []
+        for line in const_file:
+            line = line.split()
+            try:
+                lem = self.trg_dict[line[0]]
+            except KeyError:
+                continue
+            facts = [self.trgfact_dict.get(f, self.trgfact_dict['<unk>']) for f in line[1:]]
+            fact_constraints[lem] = np.array(facts)
+
         # Limit shortlist sizes
         self.n_words_src = min(self.n_words_src, len(self.src_dict)) \
                 if self.n_words_src > 0 else len(self.src_dict)
@@ -132,6 +154,7 @@ class Model(BaseModel):
 
     @staticmethod
     def beam_search(inputs, f_inits, f_nexts, beam_size=12, maxlen=50, suppress_unks=False, **kwargs):
+            global fact_constraints
             #TODO ensamble
             # Final results and their scores
             final_sample_lem = []
@@ -163,7 +186,7 @@ class Model(BaseModel):
             # maxlen or 3 times source length
             #maxlen = min(maxlen, inputs[0].shape[0] * 3)
             maxlen = inputs[0].shape[0] * 3
-
+            
             # Always starts with the initial tstep's context vectors
             # e.g. we have a ctx0 of shape (n_words x 1 x ctx_dim)
             # Tiling it live_beam times makes it (n_words x live_beam x ctx_dim)
@@ -204,53 +227,50 @@ class Model(BaseModel):
                 cand_costs_fact = []
                 cand_w_idx = []
                 cand_trans_idx = []
+
                 for idx, [cand_h_scores_lem, cand_h_scores_fact] in enumerate(zip(cand_scores_lem, cand_scores_fact)):
                     # Take the best beam_size-dead_beam hypotheses
                     ranks_lem = cand_h_scores_lem.argpartition(live_beam-1)[:live_beam]
-                    # if beam size if bigger than factors vocab, use vocab size as beam size for it
-                    #if live_beam > self.n_words_trgmult:
-                    if live_beam > next_log_p_fact.shape[1]:
-                        #ranks_fact = cand_h_scores_fact.argpartition(self.n_words_trgmult-1)[:self.n_words_trgmult]
-                        ranks_fact = cand_h_scores_fact.argpartition(next_log_p_fact,shape[1]-1)[:next_log_p_fact.shape[1]]
-                    else:
-                        ranks_fact = cand_h_scores_fact.argpartition(live_beam-1)[:live_beam]
                     # Get their costs
                     costs_h_lem = cand_h_scores_lem[ranks_lem]
-                    costs_h_fact = cand_h_scores_fact[ranks_fact]
                     #word_indices_lem = ranks_lem % self.n_words_trg
                     word_indices_lem = ranks_lem % next_log_p_lem.shape[1]
                     #word_indices_fact = ranks_fact % self.n_words_trgmult
-                    word_indices_fact = ranks_fact % next_log_p_fact.shape[1]
-                    
+
+                    # get factor constraints for each lemma selected for the beam (Franck)
+                    costs_h_fact = {}
+                    word_indices_fact = {}
+                    for l in word_indices_lem:
+                        cost_constr_fact = cand_h_scores_fact[fact_constraints[l]]
+                        if live_beam < cost_constr_fact.shape[0]:
+                            ranks_fact = cost_constr_fact.argpartition(live_beam-1)[:live_beam]
+                        else:
+                            ranks_fact = np.array(range(len(fact_constraints[l])))
+                        costs_h_fact[l] = cost_constr_fact[ranks_fact]
+                        word_indices_fact[l] = np.array([fact_constraints[l][n] for n in ranks_fact])
+                            
                     # Sum the logp's of lemmas and factors and keep the best ones
                     cand_h_costs = []
                     cand_h_costs_lem = []
                     cand_h_costs_fact = []
                     cand_h_w_idx = []
                     for l in range(live_beam):
-                        #if live_beam > self.n_words_trgmult:
-                        if live_beam > next_log_p_fact.shape[1]:
-                            #for f in range(self.n_words_trgmult):
-                            for f in range(next_log_p_fact.shape[1]):
-                                cand_h_costs.append(costs_h_lem[l]+ costs_h_fact[f])
-                                cand_h_costs_lem.append(costs_h_lem[l])
-                                cand_h_costs_fact.append(costs_h_fact[f])
-                                # keep the word indexes of both outputs
-                                cand_h_w_idx.append([word_indices_lem[l], word_indices_fact[f]])
-                        else:
-                            for f in range(live_beam):
-                                cand_h_costs.append(costs_h_lem[l]+ costs_h_fact[f])
-                                cand_h_costs_lem.append(costs_h_lem[l])
-                                cand_h_costs_fact.append(costs_h_fact[f])
-                                # keep the word indexes of both outputs
-                                cand_h_w_idx.append([word_indices_lem[l], word_indices_fact[f]])
+                        # cost_h_fact has different values for each lemma (Franck)
+                        l_idx = word_indices_lem[l]
+                        for f in range(costs_h_fact[l_idx].shape[0]):
+                            cand_h_costs.append(costs_h_lem[l]+ costs_h_fact[l_idx][f])
+                            cand_h_costs_lem.append(costs_h_lem[l])
+                            cand_h_costs_fact.append(costs_h_fact[l_idx][f])
+                            # keep the word indexes of both outputs
+                            cand_h_w_idx.append([l_idx, word_indices_fact[l_idx][f]])
+
                     # We convert the merged lists to np arrays and prune with the best costs and get indices of the nbest
                     cand_h_costs = np.array(cand_h_costs)
                     cand_h_costs_lem = np.array(cand_h_costs_lem)
                     cand_h_costs_fact = np.array(cand_h_costs_fact)
                     cand_h_w_idx = np.array(cand_h_w_idx)
                     ranks_h_costs = cand_h_costs.argsort()[:(live_beam)]
-                    
+
                     # We append the beam_size hyps
                     cand_costs.append(cand_h_costs[ranks_h_costs])
                     cand_costs_lem.append(cand_h_costs_lem[ranks_h_costs])
