@@ -88,10 +88,10 @@ class Model(BaseModel):
         # separated by space. The 1st element is the lemma,
         # all others are allowed factors for the lemma. Ex.:
         # dog noun+singular noun+plural
-        global fact_constraints
-        fact_constraints = defaultdict(lambda: np.array(range(len(trgfact_idict))))
+        self.fact_constraints = defaultdict(lambda: np.array(range(len(trgfact_idict))))
         try:
             # Set the path to file with factor constraints
+            # TODO set this file in conf
             const_file = open('/users/limsi_nmt/burlot/prog/wmt17/constraints.en2cx.bpe')
         except FileNotFoundError:
             print("File with factor constraints not found: unconstrained search")
@@ -103,7 +103,7 @@ class Model(BaseModel):
             except KeyError:
                 continue
             facts = [self.trgfact_dict.get(f, self.trgfact_dict['<unk>']) for f in line[1:]]
-            fact_constraints[lem] = np.array(facts)
+            self.fact_constraints[lem] = np.array(facts)
 
         # Limit shortlist sizes
         self.n_words_src = min(self.n_words_src, len(self.src_dict)) \
@@ -154,7 +154,6 @@ class Model(BaseModel):
 
     @staticmethod
     def beam_search(inputs, f_inits, f_nexts, beam_size=12, maxlen=50, suppress_unks=False, **kwargs):
-            global fact_constraints
             #TODO ensamble
             # Final results and their scores
             final_sample_lem = []
@@ -241,13 +240,13 @@ class Model(BaseModel):
                     costs_h_fact = {}
                     word_indices_fact = {}
                     for l in word_indices_lem:
-                        cost_constr_fact = cand_h_scores_fact[fact_constraints[l]]
+                        cost_constr_fact = cand_h_scores_fact[self.fact_constraints[l]]
                         if live_beam < cost_constr_fact.shape[0]:
                             ranks_fact = cost_constr_fact.argpartition(live_beam-1)[:live_beam]
                         else:
-                            ranks_fact = np.array(range(len(fact_constraints[l])))
+                            ranks_fact = np.array(range(len(self.fact_constraints[l])))
                         costs_h_fact[l] = cost_constr_fact[ranks_fact]
-                        word_indices_fact[l] = np.array([fact_constraints[l][n] for n in ranks_fact])
+                        word_indices_fact[l] = np.array([self.fact_constraints[l][n] for n in ranks_fact])
                             
                     # Sum the logp's of lemmas and factors and keep the best ones
                     cand_h_costs = []
