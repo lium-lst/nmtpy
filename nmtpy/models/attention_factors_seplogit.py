@@ -88,7 +88,9 @@ class Model(BaseModel):
         # separated by space. The 1st element is the lemma,
         # all others are allowed factors for the lemma. Ex.:
         # dog noun+singular noun+plural
-        self.fact_constraints = defaultdict(lambda: np.array(range(len(trgfact_idict))))
+        # TODO in future we will do something to avoid global vars (include self in beam_search?)
+        global fact_constraints
+        fact_constraints = defaultdict(lambda: np.array(range(len(trgfact_idict))))
         try:
             # Set the path to file with factor constraints
             # TODO set this file in conf and new parameter in nmt-translate-factors
@@ -103,7 +105,7 @@ class Model(BaseModel):
             except KeyError:
                 continue
             facts = [self.trgfact_dict.get(f, self.trgfact_dict['<unk>']) for f in line[1:]]
-            self.fact_constraints[lem] = np.array(facts)
+            fact_constraints[lem] = np.array(facts)
 
         # Limit shortlist sizes
         self.n_words_src = min(self.n_words_src, len(self.src_dict)) \
@@ -154,6 +156,8 @@ class Model(BaseModel):
 
     @staticmethod
     def beam_search(inputs, f_inits, f_nexts, beam_size=12, maxlen=50, suppress_unks=False, **kwargs):
+            # TODO in future we will do something to avoid global vars (include self in beam_search?)
+            global fact_constraints
             #TODO ensamble
             # Final results and their scores
             final_sample_lem = []
@@ -240,14 +244,14 @@ class Model(BaseModel):
                     costs_h_fact = {}
                     word_indices_fact = {}
                     for l in word_indices_lem:
-                        cost_constr_fact = cand_h_scores_fact[self.fact_constraints[l]]
+                        cost_constr_fact = cand_h_scores_fact[fact_constraints[l]]
                         # NOTE: the beam size could be higher than the fact dict
                         if live_beam < cost_constr_fact.shape[0]:
                             ranks_fact = cost_constr_fact.argpartition(live_beam-1)[:live_beam]
                         else:
-                            ranks_fact = np.array(range(len(self.fact_constraints[l])))
+                            ranks_fact = np.array(range(len(fact_constraints[l])))
                         costs_h_fact[l] = cost_constr_fact[ranks_fact]
-                        word_indices_fact[l] = np.array([self.fact_constraints[l][n] for n in ranks_fact])
+                        word_indices_fact[l] = np.array([fact_constraints[l][n] for n in ranks_fact])
                             
                     # Sum the logp's of lemmas and factors and keep the best ones
                     cand_h_costs = []
