@@ -91,7 +91,7 @@ class Model(BaseModel):
         self.fact_constraints = defaultdict(lambda: np.array(range(len(trgfact_idict))))
         try:
             # Set the path to file with factor constraints
-            # TODO set this file in conf
+            # TODO set this file in conf and new parameter in nmt-translate-factors
             const_file = open('/users/limsi_nmt/burlot/prog/wmt17/constraints.en2cx.bpe')
         except FileNotFoundError:
             print("File with factor constraints not found: unconstrained search")
@@ -194,7 +194,7 @@ class Model(BaseModel):
             tiled_ctx = np.tile(ctx0, [1, 1])
             live_beam = beam_size
 
-            for ii in range(maxlen):
+            for t in range(maxlen):
                 # Always starts with the initial tstep's context vectors
                 # e.g. we have a ctx0 of shape (n_words x 1 x ctx_dim)
                 # Tiling it live_beam times makes it (n_words x live_beam x ctx_dim)
@@ -241,6 +241,7 @@ class Model(BaseModel):
                     word_indices_fact = {}
                     for l in word_indices_lem:
                         cost_constr_fact = cand_h_scores_fact[self.fact_constraints[l]]
+                        # NOTE: the beam size could be higher than the fact dict
                         if live_beam < cost_constr_fact.shape[0]:
                             ranks_fact = cost_constr_fact.argpartition(live_beam-1)[:live_beam]
                         else:
