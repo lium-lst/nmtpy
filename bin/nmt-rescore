@@ -1,0 +1,146 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+
+"""Rescores translations using an nmtpy NMT model."""
+
+import os
+import sys
+import time
+import argparse
+import tempfile
+import importlib
+
+import numpy as np
+
+from nmtpy.logger   import Logger
+from nmtpy.sysutils import *
+
+def is_nbest(trg_file):
+    """Checks whether trg_file is in N-best format."""
+    with open(trg_file) as tf:
+        return ' ||| ' in tf.readline().strip()
+
+def process_files(src_file, trg_file):
+    with open(trg_file) as tf:
+        # Read source sentences as they are
+        src_sents = open(src_file).read().strip().split('\n')
+
+        new_sf = tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.rescore.src')
+        new_tf = tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.rescore.trg')
+
+        for line in tf:
+            idx, hyp, score = line.split(' ||| ')
+            new_sf.write('%s\n' % src_sents[int(idx)])
+            new_tf.write('%s\n' % hyp)
+
+    new_sf.close()
+    new_tf.close()
+
+    return (new_sf.name, new_tf.name)
+
+def write_rescore_file(trg_file, out_file, nmt_scores, nbest):
+    """Append scores to trg_file's last column and save it as out_file."""
+    with open(out_file, 'w') as of:
+        with open(trg_file) as tf:
+            for idx, (score, line) in enumerate(zip(nmt_scores, tf)):
+                if nbest:
+                    of.write("%s %.6f\n" % (line.strip(), score))
+                else:
+                    of.write("%d ||| %s ||| %.6f\n" % (idx, line.strip(), score))
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(prog='nmt-rescore')
+    parser.add_argument('-b', '--batch-size' ,default=128,    type=int, help="Batch size to use during forward-pass.")
+    parser.add_argument('-d', '--device'     ,default='auto', type=str, help="Automatically selects GPU or CPU if no GPU available. (cpu or gpuX can also be given.)")
+    parser.add_argument('-s', '--src-file'   ,required=True,  type=str, help="File containing 1 source sentence per line.")
+    parser.add_argument('-t', '--trg-file'   ,required=True,  type=str, help="Translations file in plain text or n-best format.")
+    parser.add_argument('-o', '--out-file'   ,required=True,  type=str, help="Output file for rescored translations.")
+    parser.add_argument('-m', '--model'      ,required=True,  type=str, help="Model .npz file to be used for rescoring.")
+
+    # Setup the logger
+    Logger.setup(timestamp=False)
+    log = Logger.get()
+
+    args = parser.parse_args()
+
+    #####################################
+    # Set device for Theano if not forced
+    #####################################
+    # NOTE: Very slow on CPU compared to GPU!
+    if 'THEANO_FLAGS' not in os.environ:
+        dev = get_device(args.device)
+        log.info('Using device: %s' % dev)
+        os.environ['THEANO_FLAGS'] = "device=%s" % dev
+
+        if args.device == 'cpu':
+            # This is to avoid thread explosion. Allow
+            # each process to use a single thread.
+            os.environ["OMP_NUM_THREADS"] = "1"
+            os.environ["MKL_NUM_THREADS"] = "1"
+
+    # Print information
+    log.info("Source file: %s" % args.src_file)
+    log.info("Target file: %s" % args.trg_file)
+    log.info('Initializing model %s' % os.path.basename(args.model))
+
+    # Load model options
+    model_options = dict(np.load(args.model)['opts'].tolist())
+
+    # Import the module
+    Model = importlib.import_module("nmtpy.models.%s" % model_options['model_type']).Model
+
+    # Create the model, seed is not used.
+    model = Model(seed=1, logger=None, **model_options)
+    model.load(args.model)
+    model.set_dropout(False)
+
+    # Build graph
+    log.info('Building computation graph...')
+    model.build()
+
+    # Set batch size
+    model.batch_size = args.batch_size
+    log.info('Batch size: %d' % model.batch_size)
+
+    remove_temp_files = []
+
+    # Copy filenames
+    src_file, trg_file = args.src_file, args.trg_file
+
+    is_trg_nbest = is_nbest(args.trg_file)
+
+    if is_trg_nbest:
+        log.info('Target is n-best')
+        # Process src and trg files accordingly
+        src_file, trg_file = process_files(args.src_file, args.trg_file)
+        remove_temp_files.extend([src_file, trg_file])
+
+    model.data['valid_src'] = src_file
+    model.data['valid_trg'] = trg_file
+
+    log.info('Loading data')
+    model.load_valid_data()
+
+    log.info('Rescoring...')
+
+    scores = []
+
+    start = time.time()
+    for i, data in enumerate(model.valid_iterator):
+        norm = data['y_mask'].sum(0)
+        scores.extend(model.f_log_probs(*list(data.values())) / norm)
+
+        if (i + 1) % 5 == 0:
+            log.info('%d samples completed.' % (len(scores)))
+
+    log.info('Rescoring done in %.3f seconds.' % (time.time() - start))
+
+    # Write final file
+    write_rescore_file(args.trg_file, args.out_file, scores, is_trg_nbest)
+
+    # Remove n-best related temporary files
+    for file_ in remove_temp_files:
+        os.unlink(file_)
+
+    # Report success
+    sys.exit(0)
