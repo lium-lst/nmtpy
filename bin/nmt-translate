@@ -116,7 +116,8 @@ class Translator(object):
         self.suppress_unks  = args.suppress_unks
 
         # Post-processing filters
-        self.filters = []
+        self.filters        = []
+        self.no_filters     = args.no_filters
 
         # Create worker process pool
         self.processes = [None] * self.n_jobs
@@ -139,7 +140,7 @@ class Translator(object):
             self.model_options.append(model_options)
 
         # Check for post-processing filter
-        if "filter" in self.model_options[0]:
+        if "filter" in self.model_options[0] and not self.no_filters:
             log.info("Hypotheses will be processed by the filters: '%s'" % model_options['filter'])
             filters = model_options['filter'].split(',')
             self.filters = [get_filter(f) for f in filters]
@@ -373,6 +374,7 @@ if __name__ == "__main__":
     parser.add_argument('-e', '--export'        , action='store_true',      help="Export all decoding process to json for visualization")
     parser.add_argument('-s', '--score'         , action='store_true',      help="Print scores of each sentence even nbest == 1")
     parser.add_argument('-u', '--suppress-unks' , action='store_true',      help="Don't produce <unk>'s in beam search")
+    parser.add_argument('-d', '--no-filters'    , action='store_true',      help="Don't post-process translations using filters from config file.")
 
     parser.add_argument('-S', '--src-files'     , type=str, nargs='+', default=None, help="Source data(s) in order: text,image (default: validation set)")
     parser.add_argument('-R', '--ref-files'     , type=str, nargs='+', default=None, help="One or multiple reference files (default: validation set)")
