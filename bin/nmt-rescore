@@ -55,7 +55,8 @@ if __name__ == "__main__":
     parser.add_argument('-s', '--src-file'   ,required=True,  type=str, help="File containing 1 source sentence per line.")
     parser.add_argument('-t', '--trg-file'   ,required=True,  type=str, help="Translations file in plain text or n-best format.")
     parser.add_argument('-o', '--out-file'   ,required=True,  type=str, help="Output file for rescored translations.")
-    parser.add_argument('-m', '--model'      ,required=True,  type=str, help="Model .npz file to be used for rescoring.")
+    parser.add_argument('-m', '--models'     ,required=True,  type=str, help="Model .npz file(s) to be used for (ensemble) rescoring.",
+                                                              nargs='+')
 
     # Setup the logger
     Logger.setup(timestamp=False)
@@ -81,17 +82,21 @@ if __name__ == "__main__":
     # Print information
     log.info("Source file: %s" % args.src_file)
     log.info("Target file: %s" % args.trg_file)
-    log.info('Initializing model %s' % os.path.basename(args.model))
+    log.info("%d models given for rescoring" % len(args.models))
 
-    # Load model options
-    model_options = dict(np.load(args.model)['opts'].tolist())
+    # Load model options from first model
+    model_options = dict(np.load(args.models[0])['opts'].tolist())
 
     # Import the module
     Model = importlib.import_module("nmtpy.models.%s" % model_options['model_type']).Model
 
     # Create the model, seed is not used.
     model = Model(seed=1, logger=None, **model_options)
-    model.load(args.model)
+
+    # Load the first model
+    model.load(args.models[0])
+
+    # Disable dropout
     model.set_dropout(False)
 
     # Build graph
@@ -120,20 +125,30 @@ if __name__ == "__main__":
 
     log.info('Loading data')
     model.load_valid_data()
+    iterator = model.valid_iterator
 
-    log.info('Rescoring...')
-
-    scores = []
+    # Score array per each model
+    scores = [[] for i in range(len(args.models))]
 
     start = time.time()
-    for i, data in enumerate(model.valid_iterator):
-        norm = data['y_mask'].sum(0)
-        scores.extend(model.f_log_probs(*list(data.values())) / norm)
+    for idx, modelfile in enumerate(args.models):
+        log.info('Rescoring with %s' % os.path.basename(modelfile))
 
-        if (i + 1) % 5 == 0:
-            log.info('%d samples completed.' % (len(scores)))
+        # Load model weights for anything except first one (hacky)
+        if idx > 0:
+            model.update_shared_variables(np.load(modelfile)['tparams'].tolist())
+
+        for i, data in enumerate(iterator):
+            norm = data['y_mask'].sum(0)
+            scores[idx].extend(model.f_log_probs(*list(data.values())) / norm)
+
+            if (i + 1) % 10 == 0:
+                log.info('%d samples completed.' % (len(scores[idx])))
 
     log.info('Rescoring done in %.3f seconds.' % (time.time() - start))
+
+    # Take mean scores
+    scores = np.array(scores).mean(axis=0)
 
     # Write final file
     write_rescore_file(args.trg_file, args.out_file, scores, is_trg_nbest)
