@@ -63,7 +63,7 @@ class BiTextIterator(Iterator):
 
             # Append sequences to the list
             seqs.append((sseq, tseq))
-        
+
         sf.close()
         tf.close()
 
