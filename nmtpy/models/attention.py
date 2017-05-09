@@ -1,13 +1,11 @@
 # -*- coding: utf-8 -*-
 from collections import OrderedDict
 
-# 3rd party
 import numpy as np
 
 import theano
 import theano.tensor as tensor
 
-# Ours
 from ..layers import dropout, tanh, get_new_layer
 from ..defaults import INT, FLOAT
 from ..nmtutils import norm_weight, invert_dictionary, load_dictionary
@@ -20,21 +18,28 @@ class Model(BaseModel):
         # Call parent's init first
         super(Model, self).__init__(**kwargs)
 
+        ######################################################
+        # All the kwargs arguments come from the configuration
+        # file or as extra arguments given to nmt-train.
+        ######################################################
+
         # Use GRU by default as encoder
+        # NOTE: not tested at all with LSTM
         self.enc_type = kwargs.get('enc_type', 'gru')
 
-        # Do we apply layer normalization to GRU?
+        # Do we apply layer normalization to GRU encoder?
+        # NOTE: layernorm in CGRU seems to degrade the performance
+        # so its explicitly disabled.
         self.lnorm = kwargs.get('layer_norm', False)
 
-        # Shuffle mode (default: No shuffle)
+        # Shuffle mode (default: simple shuffle)
+        # NOTE: We should probably do trglen the default
         self.smode = kwargs.get('shuffle_mode', 'simple')
 
-        # How to initialize CGRU
+        # How to initialize CGRU: text (default), zero (initialize with zero)
         self.init_cgru = kwargs.get('init_cgru', 'text')
 
         # Get dropout parameters
-        # Let's keep the defaults as 0 to not use dropout
-        # You can adjust those from your conf files.
         self.emb_dropout = kwargs.get('emb_dropout', 0.)
         self.ctx_dropout = kwargs.get('ctx_dropout', 0.)
         self.out_dropout = kwargs.get('out_dropout', 0.)
@@ -42,10 +47,16 @@ class Model(BaseModel):
         # Number of additional GRU encoders for source sentences
         self.n_enc_layers  = kwargs.get('n_enc_layers' , 1)
 
-        # Use a single embedding matrix for target words?
+        # Weight sharing/tying between target embs and pre-softmax layer
         self.tied_trg_emb = kwargs.get('tied_trg_emb', False)
 
+        ###################
         # Load dictionaries
+        ###################
+        # Get the filenames for vocab pkl's
+        src_dict_file = kwargs['dicts']['src']
+        trg_dict_file = kwargs['dicts']['trg']
+
         if 'src_dict' in kwargs:
             # Already passed through kwargs (nmt-translate)
             self.src_dict = kwargs['src_dict']
@@ -53,7 +64,7 @@ class Model(BaseModel):
             src_idict = invert_dictionary(self.src_dict)
         else:
             # Load them from pkl files
-            self.src_dict, src_idict = load_dictionary(kwargs['dicts']['src'])
+            self.src_dict, src_idict = load_dictionary(src_dict_file)
 
         if 'trg_dict' in kwargs:
             # Already passed through kwargs (nmt-translate)
@@ -62,24 +73,29 @@ class Model(BaseModel):
             trg_idict = invert_dictionary(self.trg_dict)
         else:
             # Load them from pkl files
-            self.trg_dict, trg_idict = load_dictionary(kwargs['dicts']['trg'])
+            self.trg_dict, trg_idict = load_dictionary(trg_dict_file)
 
-        # Limit shortlist sizes
+        ####################################################
+        # Limit shortlist sizes to replace
+        # out-of-shortlist tokens with <unk> in the iterator
+        ####################################################
         self.n_words_src = min(self.n_words_src, len(self.src_dict)) \
                 if self.n_words_src > 0 else len(self.src_dict)
         self.n_words_trg = min(self.n_words_trg, len(self.trg_dict)) \
                 if self.n_words_trg > 0 else len(self.trg_dict)
 
-        # Create options. This will saved as .pkl
+        # Set options: the variables until here will be saved
+        # to model checkpoints and snapshots as 'opts' dict.
         self.set_options(self.__dict__)
 
+        # No need to store inverted dictionaries so assign them here.
         self.trg_idict = trg_idict
         self.src_idict = src_idict
 
         # Context dimensionality is 2 times RNN since we use Bi-RNN
         self.ctx_dim = 2 * self.rnn_dim
 
-        # Set the seed of Theano RNG
+        # Set the seed of Theano RNG for dropout
         self.set_trng(seed)
 
         # We call this once to setup dropout mechanism correctly
@@ -219,6 +235,8 @@ class Model(BaseModel):
         return final_sample, final_score, final_alignments
 
     def info(self):
+        """Prints some information about the model."""
+
         self.logger.info('Source vocabulary size: %d', self.n_words_src)
         self.logger.info('Target vocabulary size: %d', self.n_words_trg)
         self.logger.info('%d training samples' % self.train_iterator.n_samples)
@@ -227,6 +245,8 @@ class Model(BaseModel):
         self.logger.info('dropout (emb,ctx,out): %.2f, %.2f, %.2f' % (self.emb_dropout, self.ctx_dropout, self.out_dropout))
 
     def load_valid_data(self, from_translate=False):
+        """Loads validation data."""
+
         self.valid_ref_files = self.data['valid_trg']
         if isinstance(self.valid_ref_files, str):
             self.valid_ref_files = list([self.valid_ref_files])
@@ -248,6 +268,8 @@ class Model(BaseModel):
         self.valid_iterator.read()
 
     def load_data(self):
+        """Loads training data and validation data if any."""
+
         self.train_iterator = BiTextIterator(
                                 batch_size=self.batch_size,
                                 shuffle_mode=self.smode,
@@ -267,6 +289,8 @@ class Model(BaseModel):
     # from this basic Attention model.
     ###################################################################
     def init_params(self):
+        """Initializes model weights/layers randomly and store them."""
+
         params = OrderedDict()
 
         # embedding weights for encoder and decoder
@@ -311,6 +335,8 @@ class Model(BaseModel):
         self.initial_params = params
 
     def build(self):
+        """Builds the computation graph for training."""
+
         # description string: #words x #samples
         x = tensor.matrix('x', dtype=INT)
         x_mask = tensor.matrix('x_mask', dtype=FLOAT)
@@ -373,23 +399,19 @@ class Model(BaseModel):
         emb = emb_shifted
 
         # decoder - pass through the decoder conditional gru with attention
-        proj = get_new_layer('gru_cond')[1](self.tparams, emb,
-                                            prefix='decoder',
-                                            mask=y_mask, context=ctx,
-                                            context_mask=x_mask,
-                                            one_step=False,
-                                            init_state=init_state, layernorm=False)
+        r = get_new_layer('gru_cond')[1](self.tparams, emb,
+                                         prefix='decoder',
+                                         mask=y_mask, context=ctx,
+                                         context_mask=x_mask,
+                                         one_step=False,
+                                         init_state=init_state, layernorm=False)
         # hidden states of the decoder gru
-        proj_h = proj[0]
-
         # weighted averages of context, generated by attention module
-        ctxs = proj[1]
-
         # weights (alignment matrix)
-        self.alphas = proj[2]
+        next_state, ctxs, alphas = r
 
         # compute word probabilities
-        logit_gru  = get_new_layer('ff')[1](self.tparams, proj_h, prefix='ff_logit_gru', activ='linear')
+        logit_gru  = get_new_layer('ff')[1](self.tparams, next_state, prefix='ff_logit_gru', activ='linear')
         logit_ctx  = get_new_layer('ff')[1](self.tparams, ctxs, prefix='ff_logit_ctx', activ='linear')
         logit_prev = get_new_layer('ff')[1](self.tparams, emb, prefix='ff_logit_prev', activ='linear')
 
@@ -415,11 +437,11 @@ class Model(BaseModel):
 
         self.f_log_probs = theano.function(list(self.inputs.values()), cost)
 
-        # For alpha regularization
-
         return cost
 
     def build_sampler(self):
+        """Builds the computation graph for beam search."""
+
         x           = tensor.matrix('x', dtype=INT)
         xr          = x[::-1]
         n_timesteps = x.shape[0]
@@ -475,9 +497,7 @@ class Model(BaseModel):
                                          one_step=True,
                                          init_state=init_state, layernorm=False)
 
-        next_state = r[0]
-        ctxs = r[1]
-        alphas = r[2]
+        next_state, ctxs, alphas = r
 
         logit_prev = get_new_layer('ff')[1](self.tparams, emb,          prefix='ff_logit_prev',activ='linear')
         logit_ctx  = get_new_layer('ff')[1](self.tparams, ctxs,         prefix='ff_logit_ctx', activ='linear')
@@ -492,12 +512,6 @@ class Model(BaseModel):
 
         # compute the logsoftmax
         next_log_probs = tensor.nnet.logsoftmax(logit)
-
-        # Sample from the softmax distribution
-        # NOTE: We never use sampling and it incurs performance penalty
-        # let's disable it for now
-        #next_probs = tensor.exp(next_log_probs)
-        #next_word = self.trng.multinomial(pvals=next_probs).argmax(1)
 
         # compile a function to do the whole thing above
         # next hidden state to be used
