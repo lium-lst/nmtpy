@@ -42,11 +42,13 @@ def write_rescore_file(trg_file, out_file, nmt_scores, nbest):
     """Append scores to trg_file's last column and save it as out_file."""
     with open(out_file, 'w') as of:
         with open(trg_file) as tf:
-            for idx, (score, line) in enumerate(zip(nmt_scores, tf)):
+            for idx, (scores, line) in enumerate(zip(nmt_scores, tf)):
+                # generate score string
+                score = ' '.join(["%.6f" % s for s in scores])
                 if nbest:
-                    of.write("%s %.6f\n" % (line.strip(), score))
+                    of.write("%s %s\n" % (line.strip(), score))
                 else:
-                    of.write("%d ||| %s ||| %.6f\n" % (idx, line.strip(), score))
+                    of.write("%d ||| %s ||| %s\n" % (idx, line.strip(), score))
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(prog='nmt-rescore')
@@ -147,8 +149,8 @@ if __name__ == "__main__":
 
     log.info('Rescoring done in %.3f seconds.' % (time.time() - start))
 
-    # Take mean scores
-    scores = np.array(scores).mean(axis=0)
+    # Convert scores to numpy array and transpose
+    scores = np.array(scores, dtype='float32').T
 
     # Write final file
     write_rescore_file(args.trg_file, args.out_file, scores, is_trg_nbest)
