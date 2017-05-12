@@ -36,6 +36,7 @@ log = Logger.get()
 
 # This is to avoid thread explosion. Allow
 # each process to use a single thread.
+os.environ["OPENBLAS_NUM_THREADS"] = "1"
 os.environ["OMP_NUM_THREADS"] = "1"
 os.environ["MKL_NUM_THREADS"] = "1"
 
