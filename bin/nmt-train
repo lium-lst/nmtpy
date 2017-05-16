@@ -177,6 +177,9 @@ if __name__ == '__main__':
     # List of weights that will not receive updates during BP
     dont_update = []
 
+    # Previous optimizer history
+    opt_history = None
+
     # Override some weights with pre-trained ones if given
     if train_args.init:
         log.info('Will override parameters from pre-trained weights')
@@ -201,7 +204,7 @@ if __name__ == '__main__':
     log.info("Building model")
     data_loss = model.build()
 
-    log.info("Input tensor order: ")
+    log.info("Input tensor order:")
     log.info(list(model.inputs.values()))
 
     # Compute regularized loss
@@ -209,11 +212,13 @@ if __name__ == '__main__':
     if train_args.decay_c > 0:
         reg_loss.append(model.get_l2_weight_decay(train_args.decay_c))
 
+    # Sum all regularization losses
     reg_loss = sum(reg_loss) if len(reg_loss) > 0 else None
 
     # Build optimizer
     log.info('Building optimizer %s (initial lr=%.5f)' % (model_args.optimizer, model_args.lrate))
-    model.build_optimizer(data_loss, reg_loss, train_args.clip_c, dont_update=dont_update)
+    model.build_optimizer(data_loss, reg_loss, train_args.clip_c,
+                          dont_update=dont_update, opt_history=opt_history)
 
     # Reseed to retain the order of shuffle operations
     np.random.seed(train_args.seed)

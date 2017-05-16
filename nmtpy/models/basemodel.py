@@ -1,6 +1,4 @@
 # -*- coding: utf-8 -*-
-import importlib
-
 from collections import OrderedDict
 
 from abc import ABCMeta, abstractmethod
@@ -13,6 +11,7 @@ import numpy as np
 from ..nmtutils import unzip, get_param_dict
 from ..sysutils import readable_size, get_temp_file, get_valid_evaluation
 from ..defaults import INT, FLOAT
+from ..optimizers import get_optimizer
 
 class BaseModel(object, metaclass=ABCMeta):
     def __init__(self, **kwargs):
@@ -40,6 +39,9 @@ class BaseModel(object, metaclass=ABCMeta):
         # A theano shared variable for lrate annealing
         self.learning_rate  = None
 
+        # Optimizer instance (will not be serialized)
+        self.__opt          = None
+
     @staticmethod
     def beam_search(inputs, f_inits, f_nexts, beam_size=12, maxlen=100, suppress_unks=False, **kwargs):
         # Override this from your classes
@@ -62,10 +64,7 @@ class BaseModel(object, metaclass=ABCMeta):
 
     def update_lrate(self, lrate):
         """Update learning rate."""
-        # Update model's value
-        self.lrate = lrate
-        # Update shared variable used withing the optimizer
-        self.learning_rate.set_value(self.lrate)
+        self.__opt.set_lrate(lrate)
 
     def get_nb_params(self):
         """Return the number of parameters of the model."""
@@ -140,7 +139,7 @@ class BaseModel(object, metaclass=ABCMeta):
                                            g))
         return new_grads
 
-    def build_optimizer(self, cost, regcost, clip_c, dont_update=None):
+    def build_optimizer(self, cost, regcost, clip_c, dont_update=None, opt_history=None):
         """Build optimizer by optionally disabling learning for some weights."""
         tparams = OrderedDict(self.tparams)
 
@@ -174,15 +173,11 @@ class BaseModel(object, metaclass=ABCMeta):
         if clip_c > 0:
             grads = self.get_clipped_grads(grads, clip_c)
 
-        # Load optimizer
-        opt = importlib.import_module("nmtpy.optimizers").__dict__[self.optimizer]
-
-        # Create theano shared variable for learning rate
-        # self.lrate comes from **kwargs / nmt-train params
-        self.learning_rate = theano.shared(np.float64(self.lrate).astype(FLOAT), name='lrate')
+        # Create optimizer, self.lrate is passed from nmt-train
+        self.__opt = get_optimizer(self.optimizer)(lr0=self.lrate)
 
         # Get updates
-        updates = opt(tparams, grads, self.inputs.values(), final_cost, lr0=self.learning_rate)
+        updates = self.__opt.get_updates(tparams, grads, opt_history)
 
         # Compile forward/backward function
         self.train_batch = theano.function(list(self.inputs.values()), norm_cost, updates=updates)
