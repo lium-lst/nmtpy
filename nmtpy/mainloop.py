@@ -36,7 +36,7 @@ class MainLoop(object):
         self.f_valid        = train_args.valid_freq         # Validation frequency in terms of updates
         self.epoch_valid    = (self.f_valid == 0)           # 0: end of epochs
         self.valid_save_hyp = train_args.valid_save_hyp     # save validation hypotheses under 'valid_hyps' folder
-        self.f_verbose      = 10                            # Print frequency
+        self.f_verbose      = train_args.disp_freq          # Print frequency
 
         self.epoch_losses   = []
 

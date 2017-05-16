@@ -27,5 +27,6 @@ TRAIN_DEFAULTS = {
         'valid_freq':         0,              # 0: End of epochs
         'valid_save_hyp':     False,          # Save each output of validation to separate files
         'snapshot_freq':      0,              # Checkpoint frequency in terms of number of iterations
+        'disp_freq':          10,             # Display training statistics after each disp_freq minibatches
         'save_best_n':        4,              # Always keep a set of 4 best validation models on disk
         }
