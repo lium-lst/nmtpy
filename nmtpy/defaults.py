@@ -26,7 +26,6 @@ TRAIN_DEFAULTS = {
         'valid_beam':         12,             # Allow changing beam size during validation
         'valid_freq':         0,              # 0: End of epochs
         'valid_save_hyp':     False,          # Save each output of validation to separate files
-        'sample_freq':        0,              # Sampling frequency during training (0: disabled)
         'snapshot_freq':      0,              # Checkpoint frequency in terms of number of iterations
         'save_best_n':        4,              # Always keep a set of 4 best validation models on disk
         }

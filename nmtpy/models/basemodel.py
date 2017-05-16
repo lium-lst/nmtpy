@@ -203,50 +203,6 @@ class BaseModel(object, metaclass=ABCMeta):
         # Return every available metric back
         return result
 
-    def gen_sample(self, input_dict, maxlen=100, argmax=False):
-        """Generate samples, do greedy (argmax) decoding."""
-        # A method that samples or takes the max proba's or
-        # does a forced decoding depending on the parameters.
-        final_sample = []
-        final_score = 0
-
-        inputs = list(input_dict.values())
-
-        next_state, ctx0 = self.f_init(*inputs)
-
-        # Beginning-of-sentence indicator is -1
-        next_word = np.array([-1], dtype=INT)
-
-        for ii in range(maxlen):
-            # Get next states
-            next_log_p, next_word, next_state = self.f_next(*[next_word, ctx0, next_state])
-
-            if argmax:
-                # argmax() works the same for both probas and log_probas
-                nw = next_log_p[0].argmax()
-
-            else:
-                # Multinomial sampling
-                nw = next_word[0]
-
-            # 0: <eos>
-            if nw == 0:
-                break
-
-            # Add the word idx
-            final_sample.append(nw)
-            final_score -= next_log_p[0, nw]
-
-        final_sample = [final_sample]
-        final_score = np.array(final_score)
-
-        return final_sample, final_score
-
-    def generate_samples(self, batch_dict, n_samples):
-        # Silently fail if generate_samples is not reimplemented
-        # in child classes
-        return None
-
     def info(self):
         """Reimplement to show model specific information before training."""
         pass

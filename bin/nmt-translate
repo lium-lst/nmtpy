@@ -44,22 +44,14 @@ os.environ["MKL_NUM_THREADS"] = "1"
 os.environ["THEANO_FLAGS"] = "device=cpu,optimizer_including=local_remove_all_assert"
 
 """Worker process which does beam search."""
-def translate_model(rqueue, wqueue, pid, models, beam_size, nbest, suppress_unks, get_att_alphas=False, seed=1234, mode="beamsearch"):
+def translate_model(rqueue, wqueue, pid, models, beam_size, nbest, suppress_unks, get_att_alphas=False, seed=1234):
     try:
         # Get the method handle
         beam_search = models[0].beam_search
 
-        # Get function call string
-        if mode == "beamsearch":
-            f_inits     = [m.f_init for m in models]
-            f_nexts     = [m.f_next for m in models]
-            func_call = 'beam_search(list(data_dict.values()), f_inits, f_nexts, beam_size=beam_size, get_att_alphas=%s, suppress_unks=%s)' % (get_att_alphas, suppress_unks)
+        f_inits     = [m.f_init for m in models]
+        f_nexts     = [m.f_next for m in models]
 
-        elif mode == "sample":
-            func_call = 'model.gen_sample(data_dict)'
-
-        elif mode == "argmax":
-            func_call = 'model.gen_sample(data_dict, argmax=True)'
 
         while True:
             # Get a sample
@@ -69,7 +61,9 @@ def translate_model(rqueue, wqueue, pid, models, beam_size, nbest, suppress_unks
             sample_idx, data_dict = req[0], req[1]
 
             # Get the translation, its score and alignments
-            trans, score, align = eval(func_call)
+            trans, score, align = beam_search(list(data_dict.values()),
+                                    f_inits, f_nexts, beam_size=beam_size,
+                                    get_att_alphas=get_att_alphas, suppress_unks=suppress_unks)
 
             # normalize scores according to sequence lengths
             score = score / np.array([len(s) for s in trans])
@@ -105,7 +99,6 @@ class Translator(object):
         # Fetch other arguments
         self.nbest          = args.nbest
         self.seed           = args.seed
-        self.mode           = args.decoder
         self.n_jobs         = args.n_jobs
         self.data_mode      = args.validmode
 
@@ -205,7 +198,7 @@ class Translator(object):
             self.processes[idx] = Process(target=translate_model,
                                           args=(write_queue, read_queue, idx, self.models, self.beam_size,
                                           self.nbest, self.suppress_unks, self.export,
-                                          self.seed, self.mode))
+                                          self.seed))
             # Start process and register for cleanup
             self.processes[idx].start()
             cleanup.register_proc(self.processes[idx].pid)
@@ -365,10 +358,9 @@ if __name__ == "__main__":
     parser.add_argument('-j', '--n-jobs'        , type=int, default=8,      help="Number of processes (default: 8, 0: Auto)")
     parser.add_argument('-b', '--beam-size'     , type=int, default=12,     help="Beam size (only for beam-search)")
     parser.add_argument('-N', '--nbest'         , type=int, default=1,      help="N for N-best output (only for beam-search)")
-    parser.add_argument('-r', '--seed'          , type=int, default=1234,   help="Random number seed for sampling mode (default: 1234)")
+    parser.add_argument('-r', '--seed'          , type=int, default=1234,   help="Random number seed for sampling mode (default: 1234, not used)")
 
     parser.add_argument('-v', '--validmode'     , default='single',         help="Validation mode for WMT16 MMT Task2: all/pairs/single")
-    parser.add_argument('-D', '--decoder'       , default='beamsearch',     choices=['beamsearch', 'argmax', 'sample'], help="Decoding mode")
 
     parser.add_argument('-M', '--metrics'       , type=str, default='bleu', help="Comma separated list of metrics (bleu or bleu,meteor)")
     parser.add_argument('-o', '--saveto'        , type=str, default=None,   help="Output translations file (if not given, only metrics will be printed)")

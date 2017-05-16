@@ -204,10 +204,6 @@ if __name__ == '__main__':
     log.info("Input tensor order: ")
     log.info(list(model.inputs.values()))
 
-    if train_args.sample_freq > 0:
-        log.info('Building sampler')
-        model.build_sampler()
-
     # Compute regularized loss
     reg_loss = []
     if train_args.decay_c > 0:

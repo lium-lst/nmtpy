@@ -38,11 +38,6 @@ class MainLoop(object):
         self.valid_save_hyp = train_args.valid_save_hyp     # save validation hypotheses under 'valid_hyps' folder
         self.f_verbose      = 10                            # Print frequency
 
-        # TODO: Remove sampling stuff, not useful
-        self.f_sample       = train_args.sample_freq
-        self.do_sampling    = self.f_sample > 0
-        self.n_samples      = 5                             # Number of samples to produce
-
         self.epoch_losses   = []
 
         # Multiple comma separated metrics are supported
@@ -174,9 +169,6 @@ class MainLoop(object):
             # Update learning rate if requested
             self.__update_lrate()
 
-            # Do sampling
-            self.__do_sampling(data)
-
             # Do validation
             if not self.epoch_valid and self.f_valid > 0 and self.uctr % self.f_valid == 0:
                 self.__do_validation()
@@ -203,17 +195,6 @@ class MainLoop(object):
             return False
 
         return True
-
-    def __do_sampling(self, data):
-        """Generates samples and prints them."""
-        if self.do_sampling and self.uctr % self.f_sample == 0:
-            samples = self.model.generate_samples(data, self.n_samples)
-            if samples is not None:
-                for src, truth, sample in samples:
-                    if src:
-                        self.__print("Source: %s" % src)
-                    self.__print.info("Sample: %s" % sample)
-                    self.__print.info(" Truth: %s" % truth)
 
     def __do_validation(self):
         """Do early-stopping validation."""
