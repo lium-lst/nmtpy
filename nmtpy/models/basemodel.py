@@ -219,17 +219,11 @@ class BaseModel(object, metaclass=ABCMeta):
         return result
 
     def gen_sample(self, input_dict, maxlen=100, argmax=False):
-        """Generate samples, do greedy (argmax) decoding or forced decoding."""
+        """Generate samples, do greedy (argmax) decoding."""
         # A method that samples or takes the max proba's or
         # does a forced decoding depending on the parameters.
         final_sample = []
         final_score = 0
-
-        target = None
-        if "y_true" in input_dict:
-            # We're doing forced decoding
-            target = input_dict.pop("y_true")
-            maxlen = len(target)
 
         inputs = list(input_dict.values())
 
@@ -242,10 +236,7 @@ class BaseModel(object, metaclass=ABCMeta):
             # Get next states
             next_log_p, next_word, next_state = self.f_next(*[next_word, ctx0, next_state])
 
-            if target is not None:
-                nw = int(target[ii])
-
-            elif argmax:
+            if argmax:
                 # argmax() works the same for both probas and log_probas
                 nw = next_log_p[0].argmax()
 
