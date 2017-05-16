@@ -71,9 +71,6 @@ if __name__ == '__main__':
     parser.add_argument('-n', '--no-log'        , help="Do not log to text file.",
                                                   action="store_true", default=False)
 
-    parser.add_argument('-v', '--verbose'       , help="Dump Theano graph and inspect optimization.",
-                                                  action="store_true", default=False)
-
     # You can basically override everything by passing 'lrate: 0.1' style strings at the end
     # of command-line arguments
     parser.add_argument('extra'                 , help="List of 'key:value' to override configuration",
@@ -84,9 +81,8 @@ if __name__ == '__main__':
     ####################################
     cargs   = parser.parse_args()
 
-    # Pop config filename, verbose flag and extra
+    # Pop stuff that we don't want to be saved inside .npz
     cfname  = cargs.__dict__.pop('config')
-    verbose = cargs.__dict__.pop('verbose')
     extra   = cargs.__dict__.pop('extra')
     suffix  = cargs.__dict__.pop('suffix')
     tstamp  = cargs.__dict__.pop('timestamp')
@@ -221,11 +217,7 @@ if __name__ == '__main__':
 
     # Build optimizer
     log.info('Building optimizer %s (initial lr=%.5f)' % (model_args.optimizer, model_args.lrate))
-    model.build_optimizer(data_loss, reg_loss, train_args.clip_c, dont_update=dont_update, debug=verbose)
-
-    # Save graph
-    if verbose:
-        theano.printing.debugprint(model.train_batch, file=open('%s.graph' % log_file.replace(".log", ""), 'w'))
+    model.build_optimizer(data_loss, reg_loss, train_args.clip_c, dont_update=dont_update)
 
     # Reseed to retain the order of shuffle operations
     np.random.seed(train_args.seed)

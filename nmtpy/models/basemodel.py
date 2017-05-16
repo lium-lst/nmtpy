@@ -14,15 +14,6 @@ from ..nmtutils import unzip, get_param_dict
 from ..sysutils import readable_size, get_temp_file, get_valid_evaluation
 from ..defaults import INT, FLOAT
 
-#######################################
-## For debugging function input outputs
-def inspect_inputs(i, node, fn):
-    print('>> Inputs: ', i, node, [input[0] for input in fn.inputs])
-
-def inspect_outputs(i, node, fn):
-    print('>> Outputs: ', i, node, [input[0] for input in fn.outputs])
-#######################################
-
 class BaseModel(object, metaclass=ABCMeta):
     def __init__(self, **kwargs):
         # Merge incoming parameters
@@ -149,7 +140,7 @@ class BaseModel(object, metaclass=ABCMeta):
                                            g))
         return new_grads
 
-    def build_optimizer(self, cost, regcost, clip_c, dont_update=None, debug=False):
+    def build_optimizer(self, cost, regcost, clip_c, dont_update=None):
         """Build optimizer by optionally disabling learning for some weights."""
         tparams = OrderedDict(self.tparams)
 
@@ -194,13 +185,7 @@ class BaseModel(object, metaclass=ABCMeta):
         updates = opt(tparams, grads, self.inputs.values(), final_cost, lr0=self.learning_rate)
 
         # Compile forward/backward function
-        if debug:
-            self.train_batch = theano.function(list(self.inputs.values()), norm_cost, updates=updates,
-                                               mode=theano.compile.MonitorMode(
-                                                   pre_func=inspect_inputs,
-                                                   post_func=inspect_outputs))
-        else:
-            self.train_batch = theano.function(list(self.inputs.values()), norm_cost, updates=updates)
+        self.train_batch = theano.function(list(self.inputs.values()), norm_cost, updates=updates)
 
     def run_beam_search(self, beam_size=12, n_jobs=8, metric='bleu', mode='beamsearch', valid_mode='single', f_valid_out=None):
         """Save model under /tmp for passing it to nmt-translate."""
