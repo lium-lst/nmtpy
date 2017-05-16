@@ -10,10 +10,7 @@ import time
 import os
 
 class MainLoop(object):
-    def __init__(self, model, logger, train_args, model_args):
-        # NOTE: model_args not used, if necessary they should be accessible
-        # from self.model.*
-
+    def __init__(self, model, logger, train_args):
         self.model          = model                         # The model instance that is trained
         self.__log          = logger                        # logger instance
 
