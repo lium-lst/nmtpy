@@ -1,10 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 import os
-
-# Avoid thread explosion
-os.environ["OMP_NUM_THREADS"] = "1"
-os.environ["MKL_NUM_THREADS"] = "1"
+import time
 
 import sys
 import argparse
@@ -24,6 +21,11 @@ import nmtpy.cleanup as cleanup
 # Import defaults
 from nmtpy.defaults import TRAIN_DEFAULTS as trdefs
 from nmtpy.defaults import MODEL_DEFAULTS as mddefs
+
+# Avoid thread explosion
+os.environ["OMP_NUM_THREADS"] = "1"
+os.environ["MKL_NUM_THREADS"] = "1"
+os.environ["OPENBLAS_NUM_THREADS"] = "1"
 
 if __name__ == '__main__':
     # Pretty print defaults
@@ -225,4 +227,8 @@ if __name__ == '__main__':
 
     # Create mainloop
     loop = MainLoop(model, log, train_args)
+
+    # Start training, log dates
+    log.info('Trainin started on %s' % time.strftime('%d-%m-%Y %H:%M'))
     loop.run()
+    log.info('Training finished on %s' % time.strftime('%d-%m-%Y %H:%M'))
