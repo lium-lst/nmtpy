@@ -120,10 +120,10 @@ class Model(BaseModel):
         # Ensembling-aware lists
         next_states     = [None] * n_models
         text_ctxs       = [None] * n_models
-        aux_ctxs        = [[]] * n_models
         tiled_ctxs      = [None] * n_models
         next_log_ps     = [None] * n_models
         alphas          = [None] * n_models
+        aux_ctxs        = [[] for i in range(n_models)]
 
         for i, f_init in enumerate(f_inits):
             # Get next_state and initial contexts and save them
