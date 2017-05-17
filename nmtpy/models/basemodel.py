@@ -77,11 +77,14 @@ class BaseModel(object, metaclass=ABCMeta):
         else:
             np.savez(fname, opts=self.options)
 
-    def load(self, fname):
+    def load(self, params):
         """Restore .npz checkpoint file into model."""
         self.tparams = OrderedDict()
 
-        params = get_param_dict(fname)
+        if isinstance(params, str):
+            # Filename, load from it
+            params = get_param_dict(params)
+
         for k,v in params.items():
             self.tparams[k] = theano.shared(v, name=k)
 
