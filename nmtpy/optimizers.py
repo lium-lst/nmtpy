@@ -68,7 +68,7 @@ class Optimizer(object, metaclass=ABCMeta):
 # Stochastic Gradient Descent
 #############################
 class SGD(Optimizer):
-    def __init__(self, lr0=0.001):
+    def __init__(self, lr0=0.01):
         super(SGD, self).__init__(lr0)
 
     def get_updates(self, tparams, grads, history=None):
@@ -83,7 +83,7 @@ class SGD(Optimizer):
 # RMSProp
 #########
 class RMSProp(Optimizer):
-    def __init__(self, lr0=0.01, rho=0.95, eps=1e-6):
+    def __init__(self, lr0=0.001, rho=0.95, eps=1e-6):
         super(RMSProp, self).__init__(lr0)
         self.rho = rho
         self.eps = eps
