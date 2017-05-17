@@ -175,6 +175,8 @@ class BaseModel(object, metaclass=ABCMeta):
 
         # Create optimizer, self.lrate is passed from nmt-train
         self.__opt = get_optimizer(self.optimizer)(lr0=self.lrate)
+        self.__opt.set_trng(self.trng)
+        #TODO: parameterize this! self.__opt.set_gradient_noise(0.1)
 
         # Get updates
         updates = self.__opt.get_updates(tparams, grads, opt_history)
@@ -182,7 +184,7 @@ class BaseModel(object, metaclass=ABCMeta):
         # Compile forward/backward function
         self.train_batch = theano.function(list(self.inputs.values()), norm_cost, updates=updates)
 
-    def run_beam_search(self, beam_size=12, n_jobs=8, metric='bleu', mode='beamsearch', valid_mode='single', f_valid_out=None):
+    def run_beam_search(self, beam_size=12, n_jobs=8, metric='bleu', valid_mode='single', f_valid_out=None):
         """Save model under /tmp for passing it to nmt-translate."""
         # Save model temporarily
         with get_temp_file(suffix=".npz", delete=True) as tmpf:
@@ -190,7 +192,6 @@ class BaseModel(object, metaclass=ABCMeta):
             result = get_valid_evaluation(tmpf.name,
                                           beam_size=beam_size,
                                           n_jobs=n_jobs,
-                                          mode=mode,
                                           metric=metric,
                                           valid_mode=valid_mode,
                                           f_valid_out=f_valid_out)

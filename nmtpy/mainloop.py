@@ -225,7 +225,6 @@ class MainLoop(object):
                 beam_results = self.model.run_beam_search(beam_size=self.beam_size,
                                                           n_jobs=self.njobs,
                                                           metric=self.beam_metrics,
-                                                          mode='beamsearch',
                                                           valid_mode=self.valid_mode,
                                                           f_valid_out=f_valid_out)
                 beam_time = time.time() - beam_time
