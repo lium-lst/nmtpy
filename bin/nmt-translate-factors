@@ -37,21 +37,13 @@ Logger.setup(timestamp=False)
 log = Logger.get()
 
 """Worker process which does beam search."""
-def translate_model(rqueue, wqueue, pid, models, beam_size, nbest, suppress_unks, get_att_alphas=False, seed=1234, mode="beamsearch"):
+def translate_model(rqueue, wqueue, pid, models, beam_size, nbest, suppress_unks, get_att_alphas=False, seed=1234):
     # Get the method handle
     beam_search = models[0].beam_search
     try:
-        # Get function call string
-        if mode == "beamsearch":
-            f_inits     = [m.f_init for m in models]
-            f_nexts     = [m.f_next for m in models]
-            func_call = 'beam_search(list(data_dict.values()), f_inits, f_nexts, beam_size=beam_size, get_att_alphas=%s, suppress_unks=%s)' % (get_att_alphas, suppress_unks)
 
-        elif mode in ["forced", "sample"]:
-            func_call = 'model.gen_sample(data_dict)'
-
-        elif mode == "argmax":
-            func_call = 'model.gen_sample(data_dict, argmax=True)'
+        f_inits     = [m.f_init for m in models]
+        f_nexts     = [m.f_next for m in models]
 
         while True:
             # Get a sample
@@ -62,7 +54,8 @@ def translate_model(rqueue, wqueue, pid, models, beam_size, nbest, suppress_unks
 
             # Get the translation, its score and alignments
             #trans, score, align = eval(func_call)
-            resp = eval(func_call)
+            resp = beam_search(list(data_dict.values()), f_inits, f_nexts,
+                beam_size=beam_size, get_att_alphas=get_att_alphas, suppress_unks=suppress_unks)
 
             if args.factors:
                 # normalize scores according to sequence lengths
@@ -119,7 +112,6 @@ class Translator(object):
         self.first          = args.first
         self.nbest          = args.nbest
         self.seed           = args.seed
-        self.mode           = args.decoder
         self.n_jobs         = args.n_jobs
         self.valid_mode     = args.validmode
 
@@ -167,36 +159,6 @@ class Translator(object):
         self.trg_idict = self.models[0].trg_idict
         if args.factors:
             self.trgfact_idict = self.models[0].trgfact_idict
-
-        #######################################################
-        # Forced decoding/NMT rescoring for given src/trg pairs
-        #######################################################
-        if self.mode == "forced" and self.src_files and self.ref_files:
-            log.info("Using only %s as reference file for forced decoding." % self.ref_files[0])
-            if args.factors:
-                # Give parameters as dict
-                dict_params = {'batch_size':1, 'srcfile':self.src_files[0], 'srcdict':self.models[0].src_dict, \
-                        'trglemfile':self.ref_files[0], 'trgdict':self.models[0].trg_dict, \
-                        'trgfactfile': self.fact_ref_files[0], 'trgmultdict': self.models[0].trgmult_dict, \
-                        'n_words_src': self.models[0].n_words_src,'n_words_trg': self.models[0].n_words_trg, \
-                        'n_words_trgmult':self.models[0].n_words_trgmult, 'trg_name': 'y_true'}
-
-                if len(self.src_files) == 1:
-                    self.iterator = FactorsIterator(**dict_params)
-                else:
-                    # Factors also in input
-                    dict_params['srcfactfile'] = self.src_files[1]
-                    dict_params['srcfactdict'] = self.models[0].srcfact_dict
-                    self.iterator = FactorsIterator(**dict_params)
-            else:
-                self.iterator = BiTextIterator(
-                                        batch_size=1,
-                                        srcfile=self.src_files[0], srcdict=self.models[0].src_dict,
-                                        trgfile=self.ref_files[0], trgdict=self.models[0].trg_dict,
-                                        n_words_src=self.models[0].n_words_src,
-                                        n_words_trg=self.models[0].n_words_trg,
-                                        trg_name='y_true')
-            self.iterator.read()
 
         #########################
         # Normal translation mode
@@ -368,7 +330,7 @@ class Translator(object):
 
         # Write file
         with open(filename, 'w') as f:
-            if self.mode == "forced" or dump_scores:
+            if dump_scores:
                 # We have a single hypothesis and a score for each sentence
                 for idx, (tr, sc) in enumerate(zip(trans, self.scores)):
                     f.write("%d ||| %s ||| %.6f\n" % (idx, tr[0], sc))
@@ -481,7 +443,6 @@ if __name__ == "__main__":
     parser.add_argument('-r', '--seed'          , type=int, default=1234,   help="Random number seed for sampling mode (default: 1234)")
 
     parser.add_argument('-v', '--validmode'     , default='single',         help="Validation mode for WMT16 MMT Task2: all/pairs/single")
-    parser.add_argument('-D', '--decoder'       , default='beamsearch',     choices=['beamsearch', 'argmax', 'sample', 'forced'], help="Decoding mode")
 
     parser.add_argument('-M', '--metrics'       , type=str, default='bleu', help="Comma separated list of metrics (bleu or bleu,meteor)")
     parser.add_argument('-o', '--saveto'        , type=str, nargs='+', default=None,   help="Output translations file(s) (if not given, only metrics will be printed)")
@@ -495,10 +456,6 @@ if __name__ == "__main__":
     parser.add_argument('-fa', '--factors'      , type=str, default=None, help="Activate factors. The value can be evalf to evaluate just with the first output or the script to combine the 2 outputs (default: None)")
 
     args = parser.parse_args()
-
-    if args.decoder == "forced" and (args.src_files is None or args.ref_files is None):
-        print("Error: Forced decoding requires that you give src and ref files explicitly.")
-        sys.exit(1)
 
     if args.n_jobs == 0:
         # Auto infer CPU number
@@ -544,8 +501,7 @@ if __name__ == "__main__":
         translator.write_hyps(out_file[0], 1, args.score)
 
     # No need to compute metrics with nbest style files
-    if args.decoder != "forced" and args.nbest == 1 \
-            and translator.ref_files and not args.score:
+    if args.nbest == 1 and translator.ref_files and not args.score:
         # Compute all metrics
         if args.factors:
             # Factors evaluation combining the 2 outputs
