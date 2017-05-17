@@ -116,14 +116,21 @@ class Translator(object):
     def set_model_options(self):
         for mfile in self.model_files:
             log.info('Initializing model %s' % os.path.basename(mfile))
-            model_options = dict(np.load(mfile)['opts'].tolist())
+            # Load model file
+            data = np.load(mfile)
+
+            # Fetch options
+            model_options = data['opts'].tolist()
 
             # Import the module
             self.__class = importlib.import_module("nmtpy.models.%s" % model_options['model_type']).Model
 
             # Create the model
             model = self.__class(seed=self.seed, logger=None, **model_options)
-            model.load(mfile)
+
+            # Load weights from the already loaded file
+            model.load(data['tparams'].tolist())
+
             model.set_dropout(False)
             model.build_sampler()
 
