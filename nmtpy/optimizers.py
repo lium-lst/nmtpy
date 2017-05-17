@@ -163,9 +163,9 @@ class Adam(Optimizer):
             v = self.init_value(tparam.get_value().shape, '%s_v' % tparam.name, history)
 
             if self.grad_noise_factor > 0:
-                # Sample normal noise from N(0, factor/((1+t)**0.55)).
-                stdev = self.grad_noise_factor / (i_t**0.55)
-                noise = self.trng.normal(grad.shape, std=stdev, dtype=FLOAT)
+                # Sample normal noise from N(0, sqrt(factor/((1+t)**0.55))).
+                var = self.grad_noise_factor / (i_t**0.55)
+                noise = self.trng.normal(grad.shape, std=tensor.sqrt(stdev), dtype=FLOAT)
                 grad += noise
 
             m_t = (self.b1 * m) + ((1. - self.b1) * grad)
