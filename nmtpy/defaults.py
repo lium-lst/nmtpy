@@ -8,7 +8,8 @@ MODEL_DEFAULTS = {
         'weight_init':        'xavier',       # Can be a float for the scale of normal initialization, "xavier" or "he".
         'batch_size':         32,             # Training batch size
         'optimizer':          'adam',         # adadelta, sgd, rmsprop, adam
-        'lrate':              0.0004,         # Initial learning rate
+        'lrate':              None,           # Initial learning rate. Defaults for each optimizer is different so value
+                                              # will be initialized when building optimizer if None.
         }
 
 TRAIN_DEFAULTS = {

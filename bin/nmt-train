@@ -4,6 +4,7 @@ import os
 import time
 
 import sys
+import inspect
 import argparse
 import platform
 import textwrap
@@ -106,6 +107,35 @@ if __name__ == '__main__':
     conf = Config(cfname, trdefs=trdefs, mddefs=mddefs, override=cmd_args)
     train_args, model_args = conf.parse()
 
+    #######################
+    # Set device for Theano
+    #######################
+    if 'THEANO_FLAGS' not in os.environ:
+        train_args.device_id = get_device(train_args.device_id)
+
+        # Check for GPUARRAY to switch to new Theano backend
+        if train_args.device_id.startswith('gpu') and "GPUARRAY" in os.environ:
+            train_args.device_id = train_args.device_id.replace('gpu', 'cuda')
+
+        os.environ['THEANO_FLAGS'] = "device=%s" % train_args.device_id
+
+    #########################
+    # Import theano and numpy
+    #########################
+    import theano
+    import numpy as np
+
+    ###############################################
+    # Get default lrate from optimizer if not given
+    ###############################################
+    if model_args.lrate is None:
+        from nmtpy.optimizers import get_optimizer
+        model_args.lrate = inspect.signature(get_optimizer(model_args.optimizer)).parameters['lr0'].default
+
+    # Set numpy random seed before everything else
+    if train_args.seed != 0:
+        np.random.seed(train_args.seed)
+
     # Create a folder named as conf file
     folder_name = os.path.splitext(os.path.basename(cfname))[0]
     model_args.save_path = os.path.join(model_args.save_path, folder_name)
@@ -121,41 +151,24 @@ if __name__ == '__main__':
         log_fname = os.path.join(model_args.save_path,
                                 "%s.%d.log" % (exp_id, run_id))
 
+    #####################################################
     # Start logging module (both to terminal and to file)
+    #####################################################
     Logger.setup(log_file=log_fname, timestamp=tstamp)
     log = Logger.get()
     cleanup.register_handler(log)
 
+    # Dump preliminary information
+    log.info("THEANO_FLAGS = %s" % os.environ['THEANO_FLAGS'])
+    log.info("Using device %s (on machine %s)" % (train_args.device_id, platform.node()))
+    log.info("Theano version: %s" % theano.version.full_version)
+
     # Update save_path
-    model_args.save_path = os.path.join(model_args.save_path,
-                                        "%s.%d" % (exp_id, run_id))
+    model_args.save_path = os.path.join(model_args.save_path, "%s.%d" % (exp_id, run_id))
 
     # ensure valid hyps folder if valid_save_hyp is activated
     if train_args.valid_save_hyp is True:
         ensure_dirs([model_args.save_path+'.valid_hyps'])
-
-    ###################################
-    # Set device for Theano
-    if 'THEANO_FLAGS' not in os.environ:
-        train_args.device_id = get_device(train_args.device_id)
-
-        # Check for GPUARRAY to switch to new Theano backend
-        if train_args.device_id.startswith('gpu') and "GPUARRAY" in os.environ:
-            train_args.device_id = train_args.device_id.replace('gpu', 'cuda')
-
-        os.environ['THEANO_FLAGS'] = "device=%s" % train_args.device_id
-
-    log.info("THEANO_FLAGS = %s" % os.environ['THEANO_FLAGS'])
-
-    # Import theano
-    import theano
-    import numpy as np
-    log.info("Using device: %s (on machine %s)" % (train_args.device_id, platform.node()))
-    log.info("Theano version: %s" % theano.version.full_version)
-
-    # Set numpy random seed before everything else
-    if train_args.seed != 0:
-        np.random.seed(train_args.seed)
 
     # Print options
     print_summary(train_args, model_args, print_func=log.info)
@@ -218,7 +231,7 @@ if __name__ == '__main__':
     reg_loss = sum(reg_loss) if len(reg_loss) > 0 else None
 
     # Build optimizer
-    log.info('Building optimizer %s (initial lr=%.5f)' % (model_args.optimizer, model_args.lrate))
+    log.info('Building optimizer %s (lrate=%.5f)' % (model_args.optimizer, model_args.lrate))
     model.build_optimizer(data_loss, reg_loss, train_args.clip_c,
                           dont_update=dont_update, opt_history=opt_history)
 
