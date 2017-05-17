@@ -10,7 +10,6 @@ import os
 import sys
 import time
 import json
-import inspect
 import argparse
 import importlib
 import traceback
@@ -25,8 +24,6 @@ from nmtpy.metrics          import get_scorer
 from nmtpy.nmtutils         import idx_to_sent
 from nmtpy.sysutils         import *
 from nmtpy.filters          import get_filter
-from nmtpy.iterators.bitext import BiTextIterator
-from nmtpy.iterators.factors import FactorsIterator
 from nmtpy.defaults         import INT, FLOAT
 
 import nmtpy.cleanup as cleanup
