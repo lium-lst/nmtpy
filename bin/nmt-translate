@@ -377,8 +377,8 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     if args.n_jobs == 0:
-        # Auto infer CPU number
-        args.n_jobs = (cpu_count() / 2) - 1
+        # Auto infer CPU count
+        args.n_jobs = cpu_count()
 
     # Print some informations
     log.info("%d CPU processes - beam size = %2d" % (args.n_jobs, args.beam_size))
