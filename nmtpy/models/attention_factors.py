@@ -106,7 +106,7 @@ class Model(BaseModel):
         self.set_dropout(False)
         self.logger = logger
     
-    def run_beam_search(self, beam_size=12, n_jobs=8, metric='bleu', valid_mode='single', f_valid_out=None):
+    def run_beam_search(self, beam_size=12, n_jobs=8, metric='bleu', f_valid_out=None):
         """Save model under /tmp for passing it to nmt-translate-factors."""
         # Save model temporarily
         with get_temp_file(suffix=".npz", delete=True) as tmpf:
@@ -120,7 +120,6 @@ class Model(BaseModel):
                                           beam_size=beam_size,
                                           n_jobs=n_jobs,
                                           metric=metric,
-                                          valid_mode=valid_mode,
                                           f_valid_out=[model_path+'/lem.hyp', model_path+'/fact.hyp'],
                                           factors=self.factors)
         lem_bleu_str, lem_bleu = result['out1']

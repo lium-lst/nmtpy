@@ -23,7 +23,6 @@ import numpy as np
 from nmtpy.logger           import Logger
 from nmtpy.metrics          import get_scorer
 from nmtpy.nmtutils         import idx_to_sent
-from nmtpy.textutils        import reduce_to_best
 from nmtpy.sysutils         import *
 from nmtpy.filters          import get_filter
 from nmtpy.iterators.bitext import BiTextIterator
@@ -113,7 +112,6 @@ class Translator(object):
         self.nbest          = args.nbest
         self.seed           = args.seed
         self.n_jobs         = args.n_jobs
-        self.valid_mode     = args.validmode
 
         self.models         = []
         self.model_files    = args.models
@@ -180,11 +178,7 @@ class Translator(object):
                     self.models[0].data['valid_trg2'] = self.ref_files[2]
 
             # Initialize model's validation data iterator
-            # NOTE: data_mode is for best-source-selection decoding for multimodal systems
-            if 'data_mode' in inspect.getargspec(self.models[0].load_valid_data).args:
-                self.models[0].load_valid_data(from_translate=True, data_mode=self.valid_mode)
-            else:
-                self.models[0].load_valid_data(from_translate=True)
+            self.models[0].load_valid_data(from_translate=True)
 
             # Set self.iterator to self.models[0].valid_iterator
             self.iterator = self.models[0].valid_iterator
@@ -341,10 +335,6 @@ class Translator(object):
                     for tr, sc in zip(trs, scs):
                         f.write("%d ||| %s ||| %.6f\n" % (idx, tr, sc))
             else:
-                if self.valid_mode == 'pairs':
-                    # Pick the best hyp out of all source sentences for a single image
-                    trans = reduce_to_best(trans, self.scores,
-                                                self.iterator.n_unique_images, avoid_unk=True)
                 # Prepare and dump
                 self.hyps = [s[0] for s in trans]
                 hyps = "\n".join(self.hyps) + "\n"
@@ -441,8 +431,6 @@ if __name__ == "__main__":
     parser.add_argument('-b', '--beam-size'     , type=int, default=12,     help="Beam size (only for beam-search)")
     parser.add_argument('-N', '--nbest'         , type=int, default=1,      help="N for N-best output (only for beam-search)")
     parser.add_argument('-r', '--seed'          , type=int, default=1234,   help="Random number seed for sampling mode (default: 1234)")
-
-    parser.add_argument('-v', '--validmode'     , default='single',         help="Validation mode for WMT16 MMT Task2: all/pairs/single")
 
     parser.add_argument('-M', '--metrics'       , type=str, default='bleu', help="Comma separated list of metrics (bleu or bleu,meteor)")
     parser.add_argument('-o', '--saveto'        , type=str, nargs='+', default=None,   help="Output translations file(s) (if not given, only metrics will be printed)")

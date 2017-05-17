@@ -184,7 +184,7 @@ class BaseModel(object, metaclass=ABCMeta):
         # Compile forward/backward function
         self.train_batch = theano.function(list(self.inputs.values()), norm_cost, updates=updates)
 
-    def run_beam_search(self, beam_size=12, n_jobs=8, metric='bleu', valid_mode='single', f_valid_out=None):
+    def run_beam_search(self, beam_size=12, n_jobs=8, metric='bleu', f_valid_out=None):
         """Save model under /tmp for passing it to nmt-translate."""
         # Save model temporarily
         with get_temp_file(suffix=".npz", delete=True) as tmpf:
@@ -193,7 +193,6 @@ class BaseModel(object, metaclass=ABCMeta):
                                           beam_size=beam_size,
                                           n_jobs=n_jobs,
                                           metric=metric,
-                                          valid_mode=valid_mode,
                                           f_valid_out=f_valid_out)
 
         # Return every available metric back

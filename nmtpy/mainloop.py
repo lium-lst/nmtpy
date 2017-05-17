@@ -43,11 +43,6 @@ class MainLoop(object):
 
         # We may have no validation data.
         if self.f_valid >= 0:
-            # NOTE: This is relevant only for fusion models + WMTIterator
-            self.valid_mode = 'single'
-            if 'valid_mode' in self.model.__dict__:
-                self.valid_mode = self.model.valid_mode
-
             # Setup validation hypotheses folder name
             if self.valid_save_hyp:
                 base_folder = self.model.save_path + '.valid_hyps'
@@ -225,7 +220,6 @@ class MainLoop(object):
                 beam_results = self.model.run_beam_search(beam_size=self.beam_size,
                                                           n_jobs=self.njobs,
                                                           metric=self.beam_metrics,
-                                                          valid_mode=self.valid_mode,
                                                           f_valid_out=f_valid_out)
                 beam_time = time.time() - beam_time
                 self.__print('Beam-search ended, took %.5f minutes.' % (beam_time / 60.))

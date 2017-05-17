@@ -141,10 +141,10 @@ def get_temp_file(suffix="", name=None, delete=False):
     return t
 
 def get_valid_evaluation(save_path, beam_size, n_jobs, metric,
-                         valid_mode='single', trans_cmd='nmt-translate', f_valid_out=None, factors=None):
+                         trans_cmd='nmt-translate', f_valid_out=None, factors=None):
     """Run nmt-translate for validation during training."""
     cmd = [trans_cmd, "-b", str(beam_size),
-           "-j", str(n_jobs), "-m", save_path, "-M", metric, "-v", valid_mode]
+           "-j", str(n_jobs), "-m", save_path, "-M", metric]
     # Factors option needs -fa option with the script and 2 output files
     if factors:
         cmd.extend(["-fa", factors, "-o", f_valid_out[0], f_valid_out[1]])
