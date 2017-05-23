@@ -3,6 +3,7 @@ import operator
 from .bleu   import MultiBleuScorer
 from .meteor import METEORScorer
 from .factors2wordbleu import Factors2word
+from .mtevalbleu import MTEvalV13aBLEUScorer
 
 import numpy as np
 
@@ -19,6 +20,7 @@ def get_scorer(scorer):
     scorers = {
                 'meteor'      : METEORScorer,
                 'bleu'        : MultiBleuScorer,
+                'mtevalbleu'  : MTEvalV13aBLEUScorer,
                 'factors2word': Factors2word,
               }
 
