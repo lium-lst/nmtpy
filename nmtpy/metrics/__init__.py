@@ -26,19 +26,23 @@ def get_scorer(scorer):
 
     return scorers[scorer]
 
-def is_last_best(name, history):
-    """Checks whether the last element is the best score so far."""
+def is_last_best(name, history, min_delta):
+    """Checks whether the last element is the best score so far
+    by taking into account an absolute improvement threshold min_delta."""
     if len(history) == 1:
         # If first validation, return True to save it
         return True
 
     new_value = history[-1]
+
+    # bigger is better
     if name in ['bleu', 'meteor', 'cider', 'rouge']:
-        # bigger is better
-        return new_value > max(history[:-1])
+        cur_best = max(history[:-1])
+        return new_value > cur_best and abs(new_value - cur_best) >= (min_delta - 1e-5)
+    # lower is better
     elif name in ['loss', 'px', 'ter']:
-        # lower is better
-        return new_value < min(history[:-1])
+        cur_best = min(history[:-1])
+        return new_value < cur_best and abs(new_value - cur_best) >= (min_delta - 1e-5)
 
 def find_best(name, history):
     """Returns the best idx and value for the given metric."""

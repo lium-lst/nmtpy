@@ -19,6 +19,7 @@ TRAIN_DEFAULTS = {
         'clip_c':             5.,             # Clip gradients above clip_c
         'decay_c':            0.,             # L2 penalty factor
         'patience':           10,             # Early stopping patience
+        'patience_delta':     0.,             # Absolute difference that will be taken into account as improvement for valid metric
         'max_epochs':         100,            # Max number of epochs to train
         'max_iteration':      int(1e6),       # Max number of updates to train
         'valid_metric':       'bleu',         # one or more metrics separated by comma, 1st one used for early-stopping

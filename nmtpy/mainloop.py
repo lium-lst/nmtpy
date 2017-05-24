@@ -27,6 +27,7 @@ class MainLoop(object):
 
         # Validation related parameters
         self.patience       = train_args.patience           # Stop training if no improvement after this validations
+        self.patience_delta = train_args.patience_delta     # Absolute difference that counts as an improvement
         self.valid_start    = train_args.valid_start        # Start validation at epoch 'valid_start'
         self.beam_size      = train_args.valid_beam         # Beam size for validation decodings
         self.njobs          = train_args.valid_njobs        # # of CPU processes for validation decodings
@@ -239,7 +240,7 @@ class MainLoop(object):
                     return
 
             # Is this the best evaluation based on early-stop metric?
-            if is_last_best(self.early_metric, self.valid_metrics[self.early_metric]):
+            if is_last_best(self.early_metric, self.valid_metrics[self.early_metric], self.patience_delta):
                 if self.valid_save_hyp:
                     # Create a link towards best hypothesis file
                     force_symlink(f_valid_out, '%s.BEST' % self.valid_save_prefix, relative=True)
