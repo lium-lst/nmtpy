@@ -281,7 +281,6 @@ class MainLoop(object):
     def run(self):
         """Run training loop."""
         self.model.set_dropout(True)
-        #self.model.save(self.model.save_path + '.npz')
         while self.__train_epoch():
             pass
 

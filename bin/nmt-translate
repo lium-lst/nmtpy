@@ -302,9 +302,9 @@ class Translator(object):
         """Computes evaluation metrics for the hypotheses."""
         results = {}
         for scorer in scorers:
-            c = get_scorer(scorer)()
+            c = get_scorer(scorer)
             score = c.compute(self.ref_files, hyp_file)
-            results[scorer] = (str(score), score.score)
+            results[score.name] = (str(score), score.score)
         return results
 
     def dump_json(self, filename):
@@ -363,15 +363,18 @@ if __name__ == "__main__":
     parser.add_argument('-N', '--nbest'         , type=int, default=1,      help="N for N-best output (only for beam-search)")
     parser.add_argument('-r', '--seed'          , type=int, default=1234,   help="Random number seed for sampling mode (default: 1234, not used)")
 
-    parser.add_argument('-M', '--metrics'       , type=str, default='bleu', help="Comma separated list of metrics (bleu or bleu,meteor)")
-    parser.add_argument('-o', '--saveto'        , type=str, default=None,   help="Output translations file (if not given, only metrics will be printed)")
+    parser.add_argument('-M', '--metrics'       , nargs='*',
+                                                          default=['bleu'], help="bleu/meteor or path to external script.")
     parser.add_argument('-e', '--export'        , action='store_true',      help="Export all decoding process to json for visualization")
     parser.add_argument('-s', '--score'         , action='store_true',      help="Print scores of each sentence even nbest == 1")
     parser.add_argument('-u', '--suppress-unks' , action='store_true',      help="Don't produce <unk>'s in beam search")
     parser.add_argument('-d', '--no-filters'    , action='store_true',      help="Don't post-process translations using filters from config file.")
 
-    parser.add_argument('-S', '--src-files'     , type=str, nargs='+', default=None, help="Source data(s) in order: text,image (default: validation set)")
-    parser.add_argument('-R', '--ref-files'     , type=str, nargs='+', default=None, help="One or multiple reference files (default: validation set)")
+    parser.add_argument('-S', '--src-files'     , type=str, nargs='+',
+                                                              default=None, help="Source data(s) in order: text,image (default: validation set)")
+    parser.add_argument('-R', '--ref-files'     , type=str, nargs='+',
+                                                              default=None, help="One or multiple reference files (default: validation set)")
+    parser.add_argument('-o', '--saveto'        , type=str,   default=None, help="Output translations file (if not given, only metrics will be printed)")
     parser.add_argument('-m', '--models'        , nargs='+', required=True, help="Model files")
 
     args = parser.parse_args()
@@ -407,9 +410,9 @@ if __name__ == "__main__":
     translator.write_hyps(out_file, args.score)
 
     # No need to compute metrics with nbest style files
-    if  args.nbest == 1 and translator.ref_files and not args.score:
+    if args.nbest == 1 and translator.ref_files and not args.score:
         # Compute metrics and print them. Printing is necessary for nmt-train
-        print(translator.compute_metrics(out_file, args.metrics.split(",")))
+        print(translator.compute_metrics(out_file, args.metrics))
 
     # Report success
     sys.exit(0)

@@ -1,11 +1,13 @@
+# -*- coding: utf-8 -*-
+import os
 import operator
-
-from .bleu   import MultiBleuScorer
-from .meteor import METEORScorer
-from .factors2wordbleu import Factors2word
-from .mtevalbleu import MTEvalV13aBLEUScorer
-
 import numpy as np
+
+from .bleu              import MultiBleuScorer
+from .meteor            import METEORScorer
+from .factors2wordbleu  import Factors2word
+from .mtevalbleu        import MTEvalV13aBLEUScorer
+from .external          import ExternalScorer
 
 comparators = {
         'bleu'   : (max, operator.gt, 0),
@@ -24,7 +26,12 @@ def get_scorer(scorer):
                 'factors2word': Factors2word,
               }
 
-    return scorers[scorer]
+    if scorer in scorers:
+        # A defined metric
+        return scorers[scorer]()
+    elif scorer.startswith(('/', '~')):
+        # External script
+        return ExternalScorer(os.path.expanduser(scorer))
 
 def is_last_best(name, history, min_delta):
     """Checks whether the last element is the best score so far

@@ -1,12 +1,12 @@
-import os
 import subprocess
 
-from ..sysutils import find_executable, real_path, get_temp_file
-from .metric    import Metric
-from .bleu   import MultiBleuScorer, BLEUScore
+from ..sysutils import find_executable
+from .bleu      import BLEUScore
 
 """Factors2word class."""
 class Factors2word(object):
+    def __init__(self):
+        pass
 
     def compute(self, script, hyp_file, hyp_mult_file, ref):
         script = find_executable(script)
@@ -25,4 +25,3 @@ class Factors2word(object):
             return BLEUScore()
         else:
             return BLEUScore(score[0].rstrip("\n"))
-
