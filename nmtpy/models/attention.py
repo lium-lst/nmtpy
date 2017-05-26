@@ -53,15 +53,17 @@ class Model(BaseModel):
 
         # Shared embedding schemes
         # False: disabled
-        # 2way:  Share output embeddings and input embeddings
+        # 2way:  Share output embeddings and input embeddings for target
         #        eliminating ff_logit before softmax.
-        # 3way:  Share all embeddings in the network including
-        #        source ones.
-        #        - Prepare single vocab pkl with
-        #          nmt-build-dict -s option.
-        #        - Give the same pkl to both src and trg in
-        #          model config.
+        # 3way:  Share all embeddings in the network including source.
+        #        - Prepare single vocab pkl with nmt-build-dict -s option.
+        #        - Give the same pkl to both src and trg in model config.
         self.tied_emb = kwargs.get('tied_emb', False)
+
+        # Let's call source and target embedding layers Wemb_enc and Wemb_dec
+        # by default.
+        self.src_emb_name = 'Wemb_enc'
+        self.trg_emb_name = 'Wemb_dec'
 
         ###################
         # Load dictionaries
@@ -96,6 +98,18 @@ class Model(BaseModel):
                 if self.n_words_src > 0 else len(self.src_dict)
         self.n_words_trg = min(self.n_words_trg, len(self.trg_dict)) \
                 if self.n_words_trg > 0 else len(self.trg_dict)
+
+        # Sanity check for 3-way tying
+        if self.tied_emb == '3way':
+            # Check that given vocab files are the same
+            assert src_dict_file == trg_dict_file, \
+                    "Vocabulary files should be the same for 3-way tying."
+
+            assert self.n_words_src == self.n_words_trg, \
+                    "Shortlist sizes should be the same for 3-way tying."
+
+            # Use a single name for all embeddings
+            self.src_emb_name = self.trg_emb_name = 'Wemb'
 
         # Set options: the variables until here will be saved
         # to model checkpoints and snapshots as 'opts' dict.
@@ -307,8 +321,9 @@ class Model(BaseModel):
         params = OrderedDict()
 
         # embedding weights for encoder and decoder
-        params['Wemb_enc'] = norm_weight(self.n_words_src, self.embedding_dim, scale=self.weight_init)
-        params['Wemb_dec'] = norm_weight(self.n_words_trg, self.embedding_dim, scale=self.weight_init)
+        params[self.src_emb_name] = norm_weight(self.n_words_src, self.embedding_dim, scale=self.weight_init)
+        if self.tied_emb != '3way':
+            params[self.trg_emb_name] = norm_weight(self.n_words_trg, self.embedding_dim, scale=self.weight_init)
 
         ############################
         # encoder: bidirectional RNN
@@ -372,13 +387,13 @@ class Model(BaseModel):
         n_samples = x.shape[1]
 
         # word embedding for forward rnn (source)
-        emb = dropout(self.tparams['Wemb_enc'][x.flatten()],
+        emb = dropout(self.tparams[self.src_emb_name][x.flatten()],
                       self.trng, self.emb_dropout, self.use_dropout)
         emb = emb.reshape([n_timesteps, n_samples, self.embedding_dim])
         proj = get_new_layer(self.enc_type)[1](self.tparams, emb, prefix='encoder', mask=x_mask, layernorm=self.lnorm)
 
         # word embedding for backward rnn (source)
-        embr = dropout(self.tparams['Wemb_enc'][xr.flatten()],
+        embr = dropout(self.tparams[self.src_emb_name][xr.flatten()],
                        self.trng, self.emb_dropout, self.use_dropout)
         embr = embr.reshape([n_timesteps, n_samples, self.embedding_dim])
         projr = get_new_layer(self.enc_type)[1](self.tparams, embr, prefix='encoder_r', mask=xr_mask, layernorm=self.lnorm)
@@ -406,7 +421,7 @@ class Model(BaseModel):
         # to the right. This is done because of the bi-gram connections in the
         # readout and decoder rnn. The first target will be all zeros and we will
         # not condition on the last output.
-        emb = self.tparams['Wemb_dec'][y.flatten()]
+        emb = self.tparams[self.trg_emb_name][y.flatten()]
         emb = emb.reshape([n_timesteps_trg, n_samples, self.embedding_dim])
         emb_shifted = tensor.zeros_like(emb)
         emb_shifted = tensor.set_subtensor(emb_shifted[1:], emb[:-1])
@@ -436,7 +451,7 @@ class Model(BaseModel):
         if self.tied_emb is False:
             logit = get_new_layer('ff')[1](self.tparams, logit, prefix='ff_logit', activ='linear')
         else:
-            logit = tensor.dot(logit, self.tparams['Wemb_dec'].T)
+            logit = tensor.dot(logit, self.tparams[self.trg_emb_name].T)
 
         logit_shp = logit.shape
 
@@ -464,10 +479,10 @@ class Model(BaseModel):
         n_samples   = x.shape[1]
 
         # word embedding (source), forward and backward
-        emb = self.tparams['Wemb_enc'][x.flatten()]
+        emb = self.tparams[self.src_emb_name][x.flatten()]
         emb = emb.reshape([n_timesteps, n_samples, self.embedding_dim])
 
-        embr = self.tparams['Wemb_enc'][xr.flatten()]
+        embr = self.tparams[self.src_emb_name][xr.flatten()]
         embr = embr.reshape([n_timesteps, n_samples, self.embedding_dim])
 
         # encoder
@@ -501,8 +516,8 @@ class Model(BaseModel):
 
         # if it's the first word, emb should be all zero and it is indicated by -1
         emb = tensor.switch(y[:, None] < 0,
-                            tensor.alloc(0., 1, self.tparams['Wemb_dec'].shape[1]),
-                            self.tparams['Wemb_dec'][y])
+                            tensor.alloc(0., 1, self.tparams[self.trg_emb_name].shape[1]),
+                            self.tparams[self.trg_emb_name][y])
 
         # apply one step of conditional gru with attention
         # get the next hidden states
@@ -526,7 +541,7 @@ class Model(BaseModel):
         if self.tied_emb is False:
             logit = get_new_layer('ff')[1](self.tparams, logit, prefix='ff_logit', activ='linear')
         else:
-            logit = tensor.dot(logit, self.tparams['Wemb_dec'].T)
+            logit = tensor.dot(logit, self.tparams[self.trg_emb_name].T)
 
         # compute the logsoftmax
         next_log_probs = tensor.nnet.logsoftmax(logit)
