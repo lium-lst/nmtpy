@@ -63,7 +63,7 @@ A non-exhaustive list of differences between **nmtpy** and **dl4mt-tutorial** is
 This is the basic shallow attention based NMT from `dl4mt-tutorial` improved in different ways:
   - 3 forward dropout layers after source embeddings, source context and before softmax managed by the configuration parameters `emb_dropout, ctx_dropout, out_dropout`.
   - Layer normalization for source encoder (`layer_norm:True|False`)
-  - Tied target embeddings (`tied_trg_emb:True|False`)
+  - Tied embeddings (`tied_emb:False|2way|3way`)
 
 This model uses the simple `BitextIterator` i.e. it directly reads plain parallel text files as defined in the experiment configuration file. Please see [this monomodal example](examples/wmt16-mmt-task1/wmt16-mmt-task1-monomodal.conf) for usage.
 
