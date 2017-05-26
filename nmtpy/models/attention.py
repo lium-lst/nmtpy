@@ -51,8 +51,17 @@ class Model(BaseModel):
         # Number of additional GRU encoders for source sentences
         self.n_enc_layers  = kwargs.get('n_enc_layers' , 1)
 
-        # Weight sharing/tying between target embs and pre-softmax layer
-        self.tied_trg_emb = kwargs.get('tied_trg_emb', False)
+        # Shared embedding schemes
+        # False: disabled
+        # 2way:  Share output embeddings and input embeddings
+        #        eliminating ff_logit before softmax.
+        # 3way:  Share all embeddings in the network including
+        #        source ones.
+        #        - Prepare single vocab pkl with
+        #          nmt-build-dict -s option.
+        #        - Give the same pkl to both src and trg in
+        #          model config.
+        self.tied_emb = kwargs.get('tied_emb', False)
 
         ###################
         # Load dictionaries
@@ -334,7 +343,7 @@ class Model(BaseModel):
         if self.deep_output:
             params = get_new_layer('ff')[0](params, prefix='ff_logit_prev' , nin=self.embedding_dim , nout=self.embedding_dim, scale=self.weight_init, ortho=False)
             params = get_new_layer('ff')[0](params, prefix='ff_logit_ctx'  , nin=self.ctx_dim       , nout=self.embedding_dim, scale=self.weight_init, ortho=False)
-        if self.tied_trg_emb is False:
+        if self.tied_emb is False:
             params = get_new_layer('ff')[0](params, prefix='ff_logit'  , nin=self.embedding_dim , nout=self.n_words_trg, scale=self.weight_init)
 
         self.initial_params = params
@@ -424,7 +433,7 @@ class Model(BaseModel):
 
         logit = dropout(tanh(logit), self.trng, self.out_dropout, self.use_dropout)
 
-        if self.tied_trg_emb is False:
+        if self.tied_emb is False:
             logit = get_new_layer('ff')[1](self.tparams, logit, prefix='ff_logit', activ='linear')
         else:
             logit = tensor.dot(logit, self.tparams['Wemb_dec'].T)
@@ -514,7 +523,7 @@ class Model(BaseModel):
 
         logit = tanh(logit)
 
-        if self.tied_trg_emb is False:
+        if self.tied_emb is False:
             logit = get_new_layer('ff')[1](self.tparams, logit, prefix='ff_logit', activ='linear')
         else:
             logit = tensor.dot(logit, self.tparams['Wemb_dec'].T)
