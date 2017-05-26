@@ -267,8 +267,10 @@ class Model(BaseModel):
         self.logger.info('Source vocabulary size: %d', self.n_words_src)
         self.logger.info('Target vocabulary size: %d', self.n_words_trg)
         self.logger.info('%d training samples' % self.train_iterator.n_samples)
+        self.logger.info('  %d src UNKs, %d trg UNKs' % (self.train_iterator.n_unks_src, self.train_iterator.n_unks_trg))
         if 'valid_src' in self.data:
             self.logger.info('%d validation samples' % self.valid_iterator.n_samples)
+            self.logger.info('  %d src UNKs, %d trg UNKs' % (self.valid_iterator.n_unks_src, self.valid_iterator.n_unks_trg))
         self.logger.info('dropout (emb,ctx,out): %.2f, %.2f, %.2f' % (self.emb_dropout, self.ctx_dropout, self.out_dropout))
 
     def load_valid_data(self, from_translate=False):
