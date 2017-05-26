@@ -42,6 +42,9 @@ class BiTextIterator(Iterator):
         sf = fopen(self.srcfile, 'r')
         tf = fopen(self.trgfile, 'r')
 
+        src_unks = 0
+        trg_unks = 0
+
         for idx, (sline, tline) in enumerate(zip(sf, tf)):
             sline = sline.strip()
             tline = tline.strip()
@@ -61,6 +64,9 @@ class BiTextIterator(Iterator):
             if self.n_words_trg > 0:
                 tseq = [w if w < self.n_words_trg else 1 for w in tseq]
 
+            src_unks += sseq.count(1)
+            trg_unks += tseq.count(1)
+
             # Append sequences to the list
             seqs.append((sseq, tseq))
 
@@ -69,6 +75,8 @@ class BiTextIterator(Iterator):
 
         # Save sequences
         self._seqs = seqs
+        self.n_unks_src = src_unks
+        self.n_unks_trg = trg_unks
 
         # Number of training samples
         self.n_samples = len(self._seqs)
