@@ -36,6 +36,8 @@ import nmtpy.cleanup as cleanup
 Logger.setup(timestamp=False)
 log = Logger.get()
 
+# TODO remove forced decoding cause it does not work
+
 """Worker process which does beam search."""
 def translate_model(rqueue, wqueue, pid, models, beam_size, nbest, suppress_unks, get_att_alphas=False, seed=1234, mode="beamsearch"):
     # Get the method handle
