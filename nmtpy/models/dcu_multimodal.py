@@ -336,7 +336,7 @@ class Model(Attention):
                                         nout=self.embedding_dim, scale=self.weight_init)
         params = get_new_layer('ff')[0](params, prefix='ff_logit_emb', nin=self.embedding_dim,
                                         nout=self.embedding_dim, scale=self.weight_init)
-        if self.tied_trg_emb is False:
+        if self.tied_emb is False:
             params = get_new_layer('ff')[0](params, prefix='ff_logit', nin=self.embedding_dim,
                                             nout=self.n_words_trg, scale=self.weight_init)
 
@@ -466,7 +466,7 @@ class Model(Attention):
         # Dropout
         logit = dropout(tanh(logit_gru + logit_emb + logit_ctx_text + logit_ctx_img), self.trng, self.out_dropout, self.use_dropout)
 
-        if self.tied_trg_emb is False:
+        if self.tied_emb is False:
             logit = get_new_layer('ff')[1](self.tparams, logit, prefix='ff_logit', activ='linear')
         else:
             logit = tensor.dot(logit, self.tparams['Wemb_dec'].T)
@@ -572,7 +572,7 @@ class Model(Attention):
         # NOTE: They also had logit_emb
         logit = tanh(logit_gru + logit_emb + logit_ctx_text + logit_ctx_img)
 
-        if self.tied_trg_emb is False:
+        if self.tied_emb is False:
             logit = get_new_layer('ff')[1](self.tparams, logit, prefix='ff_logit', activ='linear')
         else:
             logit = tensor.dot(logit, self.tparams['Wemb_dec'].T)
