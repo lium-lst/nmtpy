@@ -229,5 +229,5 @@ class BaseModel(object, metaclass=ABCMeta):
 
     @abstractmethod
     def build_sampler(self):
-        """Similar to build() but works sequentially for beam-search or sampling."""
+        """Build f_init() and f_next() for beam-search."""
         pass
