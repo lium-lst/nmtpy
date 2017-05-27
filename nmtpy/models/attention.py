@@ -32,9 +32,8 @@ class Model(BaseModel):
         # so its explicitly disabled.
         self.lnorm = kwargs.get('layer_norm', False)
 
-        # Shuffle mode (default: simple shuffle)
-        # NOTE: We should probably do trglen the default
-        self.smode = kwargs.get('shuffle_mode', 'simple')
+        # Shuffle mode (default: trglen (ordered by target len))
+        self.smode = kwargs.get('shuffle_mode', 'trglen')
 
         # How to initialize CGRU: text (default), zero (initialize with zero)
         self.init_cgru = kwargs.get('init_cgru', 'text')
