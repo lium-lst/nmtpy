@@ -130,6 +130,11 @@ class Translator(object):
             self.models.append(model)
             self.model_options.append(model_options)
 
+        # Sanity check for target vocabularies: they should all be same
+        if self.n_models > 1:
+            assert len(set([len(mopts['trg_dict']) for mopts in self.model_options])) == 1, \
+                    "Target vocabularies should be the same for ensembling."
+
         # Check for post-processing filter
         # NOTE: Filters should be the same for each model during ensembling
         if "filter" in self.model_options[0] and not self.no_filters:
