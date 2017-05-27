@@ -48,8 +48,12 @@ class BaseModel(object, metaclass=ABCMeta):
         pass
 
     def set_options(self, optdict):
-        """Filter out None's and save option dict."""
-        self.options = OrderedDict([(k,v) for k,v in optdict.items() if v is not None])
+        """Filter out None's and '__[a-zA-Z]' then store into self.options."""
+        self.options = OrderedDict()
+        for k,v in optdict.items():
+            # Don't keep model attributes with __ prefix
+            if v is not None and not k.startswith('__'):
+                self.options[k] = v
 
     def set_trng(self, seed):
         """Set the seed for Theano RNG."""
