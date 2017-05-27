@@ -32,6 +32,15 @@ import nmtpy.cleanup as cleanup
 Logger.setup(timestamp=False)
 log = Logger.get()
 
+# This is to avoid thread explosion. Allow
+# each process to use a single thread.
+os.environ["OPENBLAS_NUM_THREADS"] = "1"
+os.environ["OMP_NUM_THREADS"] = "1"
+os.environ["MKL_NUM_THREADS"] = "1"
+
+# Force CPU
+os.environ["THEANO_FLAGS"] = "device=cpu,optimizer_including=local_remove_all_assert"
+
 """Worker process which does beam search."""
 def translate_model(rqueue, wqueue, pid, models, beam_size, nbest, suppress_unks, get_att_alphas=False, seed=1234):
     # Get the method handle
@@ -49,7 +58,6 @@ def translate_model(rqueue, wqueue, pid, models, beam_size, nbest, suppress_unks
             sample_idx, data_dict = req[0], req[1]
 
             # Get the translation, its score and alignments
-            #trans, score, align = eval(func_call)
             resp = beam_search(list(data_dict.values()), f_inits, f_nexts,
                 beam_size=beam_size, get_att_alphas=get_att_alphas, suppress_unks=suppress_unks)
 
@@ -100,12 +108,7 @@ class Translator(object):
         # for further exporting to json
         self.export = args.export
 
-        # Assume for now that a request for JSON exporting
-        # assumes fetching attentional alphas as well.
-        self.get_att_alphas = self.export
-
         # Fetch other arguments
-        self.first          = args.first
         self.nbest          = args.nbest
         self.seed           = args.seed
         self.n_jobs         = args.n_jobs
@@ -118,7 +121,8 @@ class Translator(object):
         self.suppress_unks  = args.suppress_unks
 
         # Post-processing filters
-        self.filters = []
+        self.filters        = []
+        self.no_filters     = args.no_filters
 
         # Create worker process pool
         self.processes = [None] * self.n_jobs
@@ -126,14 +130,21 @@ class Translator(object):
     def set_model_options(self):
         for mfile in self.model_files:
             log.info('Initializing model %s' % os.path.basename(mfile))
-            model_options = dict(np.load(mfile)['opts'].tolist())
+            # Load model file
+            data = np.load(mfile)
+
+            # Fetch options
+            model_options = get_model_options(data['opts'])
 
             # Import the module
             self.__class = importlib.import_module("nmtpy.models.%s" % model_options['model_type']).Model
 
             # Create the model
             model = self.__class(seed=self.seed, logger=None, **model_options)
-            model.load(mfile)
+
+            # Load weights from the already loaded file
+            model.load(data['tparams'].tolist())
+
             model.set_dropout(False)
             model.build_sampler()
 
@@ -142,15 +153,17 @@ class Translator(object):
 
         # Sanity check for target vocabularies: they should all be same
         if self.n_models > 1:
-            assert len(set([len(mopts['trg_dict']) for mopts in self.model_options])) == 1
+            assert len(set([len(mopts['trg_dict']) for mopts in self.model_options])) == 1, "Target vocabularies should be the same for ensembling."
 
         # Check for post-processing filter
-        if "filter" in self.model_options[0]:
+        # NOTE: Filters should be the same for each model during ensembling
+        if "filter" in self.model_options[0] and not self.no_filters:
             log.info("Hypotheses will be processed by the filters: '%s'" % model_options['filter'])
             filters = model_options['filter'].split(',')
             self.filters = [get_filter(f) for f in filters]
 
         # Get inverted dictionary from the model itself
+        # NOTE: Target dictionary should be the same for each model during ensembling
         self.trg_idict = self.models[0].trg_idict
         if args.factors:
             self.trgfact_idict = self.models[0].trgfact_idict
@@ -180,13 +193,8 @@ class Translator(object):
             # Set self.iterator to self.models[0].valid_iterator
             self.iterator = self.models[0].valid_iterator
 
-            # Full or partial decoding given by -f argument
-            if self.first > 0:
-                # Only first self.first sentences
-                self.n_sentences = self.first
-            else:
-                # All sentences
-                self.n_sentences = self.iterator.n_samples
+            # All sentences
+            self.n_sentences = self.iterator.n_samples
 
             # Assume validation data encoded in the model
             if self.src_files is None:
@@ -211,7 +219,9 @@ class Translator(object):
 
             log.info('I will translate %d samples' % self.n_sentences)
 
+        ###################
         # Print information
+        ###################
         log.info("Source file(s)")
         for f in self.src_files:
             log.info("  %s" % f)
@@ -230,8 +240,8 @@ class Translator(object):
         for idx in range(self.n_jobs):
             self.processes[idx] = Process(target=translate_model,
                                           args=(write_queue, read_queue, idx, self.models, self.beam_size,
-                                          self.nbest, self.suppress_unks, self.get_att_alphas,
-                                          self.seed, self.mode))
+                                          self.nbest, self.suppress_unks, self.export,
+                                          self.seed))
             # Start process and register for cleanup
             self.processes[idx].start()
             cleanup.register_proc(self.processes[idx].pid)
@@ -423,11 +433,10 @@ class Translator(object):
 if __name__ == "__main__":
     # nmt-translate variant for Factored NMT model (attention_factors.py)
     parser = argparse.ArgumentParser(prog='nmt-translate-factors')
-    parser.add_argument('-f', '--first'         , type=int, default=0,      help="How many sentences should be translated, useful for debugging.")
     parser.add_argument('-j', '--n-jobs'        , type=int, default=8,      help="Number of processes (default: 8, 0: Auto)")
     parser.add_argument('-b', '--beam-size'     , type=int, default=12,     help="Beam size (only for beam-search)")
     parser.add_argument('-N', '--nbest'         , type=int, default=1,      help="N for N-best output (only for beam-search)")
-    parser.add_argument('-r', '--seed'          , type=int, default=1234,   help="Random number seed for sampling mode (default: 1234)")
+    parser.add_argument('-r', '--seed'          , type=int, default=1234,   help="Random number seed for sampling mode (default: 1234, not used)")
 
     parser.add_argument('-M', '--metrics'       , nargs='*',
                                                           default=['bleu'], help="bleu/meteor or path to external script.")
@@ -436,6 +445,7 @@ if __name__ == "__main__":
     parser.add_argument('-e', '--export'        , action='store_true',      help="Export all decoding process to json for visualization")
     parser.add_argument('-s', '--score'         , action='store_true',      help="Print scores of each sentence even nbest == 1")
     parser.add_argument('-u', '--suppress-unks' , action='store_true',      help="Don't produce <unk>'s in beam search")
+    parser.add_argument('-d', '--no-filters'    , action='store_true',      help="Don't post-process translations using filters from config file.")
 
     parser.add_argument('-S', '--src-files'     , type=str, nargs='+',
                                                               default=None, help="Source data(s) in order: text,image (default: validation set)")
@@ -447,17 +457,8 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     if args.n_jobs == 0:
-        # Auto infer CPU number
-        args.n_jobs = (cpu_count() / 2) - 1
-
-    # This is to avoid thread explosion. Allow
-    # each process to use a single thread.
-    os.environ["OMP_NUM_THREADS"] = "1"
-    os.environ["MKL_NUM_THREADS"] = "1"
-    os.environ["OPENBLAS_NUM_THREADS"] = "1"
-
-    # Force CPU
-    os.environ["THEANO_FLAGS"] = "device=cpu,optimizer_including=local_remove_all_assert"
+        # Auto infer CPU count
+        args.n_jobs = cpu_count()
 
     # Print some informations
     log.info("%d CPU processes - beam size = %2d" % (args.n_jobs, args.beam_size))
@@ -473,8 +474,7 @@ if __name__ == "__main__":
         # Override this if given
         args.score = False
         hypf = get_temp_file(suffix=".nbest_hyps")
-        out_file = []
-        out_file.append(hypf.name)
+        out_file = [hypf.name]
         hypf.close()
 
     # Export attentional informations if -o and -e are given
