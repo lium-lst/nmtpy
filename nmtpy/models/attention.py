@@ -39,9 +39,9 @@ class Model(BaseModel):
         # How to initialize CGRU: text (default), zero (initialize with zero)
         self.init_cgru = kwargs.get('init_cgru', 'text')
 
-        # If disabled, just use the decoder's hidden state for conditioning
+        # If enabled, just use the decoder's hidden state for conditioning
         # the target probability instead of dl4mt style 3-way fusion.
-        self.deep_output = kwargs.get('deep_output', True)
+        self.simple_output = kwargs.get('simple_output', False)
 
         # Get dropout parameters
         self.emb_dropout = kwargs.get('emb_dropout', 0.)
@@ -357,7 +357,7 @@ class Model(BaseModel):
         # fusion
         ########
         params = get_new_layer('ff')[0](params, prefix='ff_logit_gru'  , nin=self.rnn_dim       , nout=self.embedding_dim, scale=self.weight_init, ortho=False)
-        if self.deep_output:
+        if not self.simple_output:
             params = get_new_layer('ff')[0](params, prefix='ff_logit_prev' , nin=self.embedding_dim , nout=self.embedding_dim, scale=self.weight_init, ortho=False)
             params = get_new_layer('ff')[0](params, prefix='ff_logit_ctx'  , nin=self.ctx_dim       , nout=self.embedding_dim, scale=self.weight_init, ortho=False)
         if self.tied_emb is False:
@@ -444,7 +444,7 @@ class Model(BaseModel):
         # compute word probabilities
         logit = get_new_layer('ff')[1](self.tparams, next_state, prefix='ff_logit_gru', activ='linear')
 
-        if self.deep_output:
+        if not self.simple_output:
             logit += get_new_layer('ff')[1](self.tparams, ctxs, prefix='ff_logit_ctx', activ='linear')
             logit += get_new_layer('ff')[1](self.tparams, emb, prefix='ff_logit_prev', activ='linear')
 
@@ -534,7 +534,7 @@ class Model(BaseModel):
 
         logit = get_new_layer('ff')[1](self.tparams, next_state, prefix='ff_logit_gru', activ='linear')
 
-        if self.deep_output:
+        if not self.simple_output:
             logit += get_new_layer('ff')[1](self.tparams, emb, prefix='ff_logit_prev',activ='linear')
             logit += get_new_layer('ff')[1](self.tparams, ctxs, prefix='ff_logit_ctx', activ='linear')
 
