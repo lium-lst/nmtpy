@@ -86,7 +86,7 @@ class BaseModel(object, metaclass=ABCMeta):
             params = get_param_dict(params)
 
         for k,v in params.items():
-            self.tparams[k] = theano.shared(v, name=k)
+            self.tparams[k] = theano.shared(v.astype(FLOAT), name=k)
 
     def init_shared_variables(self):
         """Initialize the shared variables of the model."""
