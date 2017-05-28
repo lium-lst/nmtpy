@@ -297,7 +297,7 @@ def get_model_options(optdict):
     optdict = optdict.tolist()
 
     # tied_trg_emb, i.e. renamed to tied_emb
-    if 'tied_trg_emb' in optdict:
+    if 'tied_trg_emb' in optdict and 'tied_emb' not in optdict:
         optdict['tied_emb'] = '2way'
         del optdict['tied_trg_emb']
 
