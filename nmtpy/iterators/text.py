@@ -11,7 +11,7 @@ class TextIterator(Iterator):
 
         assert 'file'   in kwargs, "Missing argument file"
         assert 'dict'   in kwargs, "Missing argument dict"
-        
+
         self.__file = kwargs['file']
         self.__dict = kwargs['dict']
         self.__n_words = kwargs.get('n_words', 0)
