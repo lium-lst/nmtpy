@@ -10,19 +10,20 @@ from .mtevalbleu        import MTEvalV13aBLEUScorer
 from .external          import ExternalScorer
 
 comparators = {
-        'bleu'   : (max, operator.gt, 0),
-        'meteor' : (max, operator.gt, 0),
-        'cider'  : (max, operator.gt, 0),
-        'rouge'  : (max, operator.gt, 0),
-        'loss'   : (min, operator.lt, -1),
-        'ter'    : (min, operator.lt, -1),
+        'bleu'      : (max, operator.gt, 0),
+        'bleu_v13a' : (max, operator.gt, 0),
+        'meteor'    : (max, operator.gt, 0),
+        'cider'     : (max, operator.gt, 0),
+        'rouge'     : (max, operator.gt, 0),
+        'loss'      : (min, operator.lt, -1),
+        'ter'       : (min, operator.lt, -1),
     }
 
 def get_scorer(scorer):
     scorers = {
                 'meteor'      : METEORScorer,
                 'bleu'        : MultiBleuScorer,
-                'mtevalbleu'  : MTEvalV13aBLEUScorer,
+                'bleu_v13a'   : MTEvalV13aBLEUScorer,
                 'factors2word': Factors2word,
               }
 
@@ -43,7 +44,7 @@ def is_last_best(name, history, min_delta):
     new_value = history[-1]
 
     # bigger is better
-    if name in ['bleu', 'meteor', 'cider', 'rouge']:
+    if name.startswith(('bleu', 'meteor', 'cider', 'rouge')):
         cur_best = max(history[:-1])
         return new_value > cur_best and abs(new_value - cur_best) >= (min_delta - 1e-5)
     # lower is better
@@ -54,7 +55,7 @@ def is_last_best(name, history, min_delta):
 def find_best(name, history):
     """Returns the best idx and value for the given metric."""
     history = np.array(history)
-    if name in ['bleu', 'meteor', 'cider', 'rouge']:
+    if name.startswith(('bleu', 'meteor', 'cider', 'rouge')):
         best_idx = np.argmax(history)
     elif name in ['loss', 'px', 'ter']:
         best_idx = np.argmin(history)

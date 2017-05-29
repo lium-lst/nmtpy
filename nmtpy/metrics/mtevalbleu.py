@@ -192,7 +192,7 @@ def tokenizer(s, is_cased):
 class BLEUScore(Metric):
     def __init__(self, score=None):
         super(BLEUScore, self).__init__(score)
-        self.name = "BLEU(v13a)"
+        self.name = "BLEU_v13a"
         if score:
             self.score = float(score.split()[0][:-1])
             self.score_str = score
