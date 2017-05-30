@@ -97,6 +97,7 @@ class Model(BaseModel):
             # dictionary with lemma and factors, each line lemma factor1 factor2 factor3
             const_file = open('/users/limsi_nmt/burlot/prog/wmt17/constraints.en2cx.bpe')
             #const_file = open('/lium/buster1/garcia/workspace/scripts/latvian/constraints.lv')
+            #const_file = open('/lium/buster1/garcia/workspace/scripts/czech/constraints.cs')
             print("Constrained search", const_file)
         except FileNotFoundError:
             print("File with factor constraints not found: unconstrained search")
