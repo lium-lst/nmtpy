@@ -21,9 +21,9 @@ from ..iterators.factors import FactorsIterator
 from .basemodel import BaseModel
 from .attention import Model
 from ..sysutils import readable_size, get_temp_file, get_valid_evaluation
-from .basefactors import Model as BaseFactors
+from .attention_multiple import Model as AttentionMultiple
 
-class Model(BaseFactors):
+class Model(AttentionMultiple):
 
    ###################################################################
     # The following methods can be redefined in child models inheriting
