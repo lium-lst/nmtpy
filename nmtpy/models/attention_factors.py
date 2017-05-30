@@ -19,13 +19,12 @@ from ..iterators.text import TextIterator
 from ..iterators.bitext import BiTextIterator
 from ..iterators.factors import FactorsIterator
 from .basemodel import BaseModel
-from .attention import Model
 from ..sysutils import readable_size, get_temp_file, get_valid_evaluation
 from .attention_multiple import Model as AttentionMultiple
 
 class Model(AttentionMultiple):
 
-   ###################################################################
+    ###################################################################
     # The following methods can be redefined in child models inheriting
     # from this basic Attention model.
     ###################################################################
