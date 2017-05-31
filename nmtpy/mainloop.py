@@ -241,10 +241,6 @@ class MainLoop(object):
 
             # Is this the best evaluation based on early-stop metric?
             if is_last_best(self.early_metric, self.valid_metrics[self.early_metric], self.patience_delta):
-                if self.valid_save_hyp:
-                    # Create a link towards best hypothesis file
-                    force_symlink(f_valid_out, '%s.BEST' % self.valid_save_prefix, relative=True)
-
                 self.__save_best_model()
                 self.early_bad = 0
             else:
