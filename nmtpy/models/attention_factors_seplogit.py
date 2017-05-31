@@ -20,9 +20,9 @@ from ..iterators.bitext import BiTextIterator
 from ..iterators.factors import FactorsIterator
 from .basemodel import BaseModel
 from ..sysutils import readable_size, get_temp_file, get_valid_evaluation
-from .attention_multiple import Model as AttentionMultiple
+from .basefnmt import Model as AttentionFnmt
 
-class Model(AttentionMultiple):
+class Model(AttentionFnmt):
     
     ###################################################################
     # The following methods can be redefined in child models inheriting

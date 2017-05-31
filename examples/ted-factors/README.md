@@ -1,6 +1,23 @@
 # Factored Neural Machine Translation system
 
-This system generates multiple outputs for the neural network.
+The Factored NMT models defined by ```basefnmt.py``` are based on the NMT architecture and extended to be able to generate several output symbols at the same time (Figure http://www-lium.univ-lemans.fr/~garcia/fnmt_archi.pdf).
+
+The decoder has been modified respect to the baseline model with the following items:
+
+- Specialized iterator named ```factors.py``` that handles multiple inputs and outputs text streams.
+- Additional softmax and embedding for the 2nd output.
+- Concatenation of the embeddings of the generated tokens at previous timestep to feedback the generation of the current token.
+- Sum of costs coming from each output.
+- Constriction of the length of the 2nd output sequence to be equal to the length of the 1st output sequence. 
+Firstly, we included a new mask excluding the end of sequence (\tm{EOS}) symbols to avoid shorter sequences. 
+Secondly, we limited the maximum length of the 2nd output sequence to the length of the 1st output sequence.
+- The beam search has been modified to be able to handle the multiple outputs.
+Once we obtain the hypothesis from lemmas (1st output) and factors (2nd output) at stage 1 of the Figure http://www-lium.univ-lemans.fr/~garcia/beamsearch.pdf, the cross product of those output spaces is performed.
+Afterwards, we keep the beam size best combinations for each hypothesis. 
+Finally, the number of samples is reduced again to the beam size.
+- Translation generation executed by ```nmt-translate-factors``` which can handle multiple outputs. 
+- Optionally, \tm{factors2wordbleu.py} metric is available to evaluate with BLEU the combination of the several outputs. 
+A script detailed in the configuration file is necessary to apply this metric.
 
 ## TED data 
 
