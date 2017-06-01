@@ -2,6 +2,10 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
+Feel free to send an e-mail to ozan.caglayan.etu@univ-lemans.fr for an invitation to our
+**Slack** channel https://nmtpy.slack.com
+
+
 **nmtpy** is a suite of Python tools, primarily based on the starter code provided in [dl4mt-tutorial](https://github.com/nyu-dl/dl4mt-tutorial) for training neural machine translation networks using Theano.
 
 The basic motivation behind forking **dl4mt-tutorial** was to create a framework where it would be
