@@ -60,13 +60,14 @@ if __name__ == '__main__':
 
     # Override the model-type given in configuration file to experiment with
     # a different model by fixing every other parameter given in the configuration
+    # NOTE: These 2 can also be overriden by extra arguments (ambiguity)
     parser.add_argument('-m', '--model-type'    , help="Override the model type given in the configuration",
+                                                  type=str)
+    parser.add_argument('-i', '--init'          , help="Pretrained weights .npz extracted with nmt-extract",
                                                   type=str)
 
     parser.add_argument('-s', '--suffix'        , help="Model file suffix",
                                                   type=str, default=None)
-    parser.add_argument('-i', '--init'          , help="Pretrained weights .npz extracted with nmt-extract",
-                                                  type=str)
     parser.add_argument('-f', '--freeze'        , help="Freeze the pretrained weights given with --init",
                                                   action="store_true", default=False)
     parser.add_argument('-t', '--timestamp'     , help="Add timestamp to log messages.",
@@ -82,29 +83,19 @@ if __name__ == '__main__':
     ####################################
     # Parse command-line arguments first
     ####################################
-    cargs   = parser.parse_args()
+    cargs = parser.parse_args().__dict__
 
-    # Pop stuff that we don't want to be saved inside .npz
-    cfname  = cargs.__dict__.pop('config')
-    extra   = cargs.__dict__.pop('extra')
-    suffix  = cargs.__dict__.pop('suffix')
-    tstamp  = cargs.__dict__.pop('timestamp')
-    nolog   = cargs.__dict__.pop('no_log')
-    freeze  = cargs.__dict__.pop('freeze')
+    # Get model_type and init from cmdline if any
+    ext_args = {k: cargs[k] for k in cargs if k in ['model_type', 'init']}
 
-    # Take the remaining command line arguments (model_type and/or init if any)
-    cmd_args = cargs.__dict__
+    # Split and convert extra arguments to dict
+    extras = [e.split(':', 1) for e in cargs['extra']]
 
-    if len(extra) > 0:
-        # Split and convert extra arguments to dict
-        ext_args = [e.split(':', 1) for e in extra]
-        ext_args = dict([(k.strip(), v.strip()) for k,v in ext_args])
-
-        # Merge by prioritizing extra arguments
-        cmd_args.update(ext_args)
+    # Merge init,model_type with extra_args
+    ext_args.update({k.strip(): v.strip() for k,v in extras})
 
     # Parse configuration file and merge with the rest
-    conf = Config(cfname, trdefs=trdefs, mddefs=mddefs, override=cmd_args)
+    conf = Config(cargs['config'], trdefs=trdefs, mddefs=mddefs, override=ext_args)
     train_args, model_args = conf.parse()
 
     #######################
@@ -142,24 +133,24 @@ if __name__ == '__main__':
         np.random.seed(train_args.seed)
 
     # Create a folder named as conf file
-    folder_name = os.path.splitext(os.path.basename(cfname))[0]
+    folder_name = os.path.splitext(os.path.basename(cargs['config']))[0]
     model_args.save_path = os.path.join(model_args.save_path, folder_name)
     ensure_dirs([model_args.save_path])
 
     # Create a unique experience identifier string
-    exp_id = get_exp_identifier(train_args, model_args, suffix=suffix)
+    exp_id = get_exp_identifier(train_args, model_args, suffix=cargs['suffix'])
     # Get unique run identifier (starts from 1)
     run_id = get_next_runid(model_args.save_path, exp_id)
     # Get log file name
     log_fname = None
-    if not nolog:
+    if not cargs['nolog']:
         log_fname = os.path.join(model_args.save_path,
                                 "%s.%d.log" % (exp_id, run_id))
 
     #####################################################
     # Start logging module (both to terminal and to file)
     #####################################################
-    Logger.setup(log_file=log_fname, timestamp=tstamp)
+    Logger.setup(log_file=log_fname, timestamp=cargs['tstamp'])
     log = Logger.get()
     cleanup.register_handler(log)
 
@@ -206,7 +197,7 @@ if __name__ == '__main__':
         log.info('  %s' % os.path.basename(train_args.init))
         new_params = get_param_dict(train_args.init)
         model.update_shared_variables(new_params)
-        if freeze:
+        if cargs['freeze']:
             log.info('Pretrained weights will not be updated.')
             dont_update = list(new_params.keys())
 
