@@ -143,14 +143,14 @@ if __name__ == '__main__':
     run_id = get_next_runid(model_args.save_path, exp_id)
     # Get log file name
     log_fname = None
-    if not cargs['nolog']:
+    if not cargs['no_log']:
         log_fname = os.path.join(model_args.save_path,
                                 "%s.%d.log" % (exp_id, run_id))
 
     #####################################################
     # Start logging module (both to terminal and to file)
     #####################################################
-    Logger.setup(log_file=log_fname, timestamp=cargs['tstamp'])
+    Logger.setup(log_file=log_fname, timestamp=cargs['timestamp'])
     log = Logger.get()
     cleanup.register_handler(log)
 

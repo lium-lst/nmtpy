@@ -274,7 +274,8 @@ def get_exp_identifier(train_args, model_args, suffix=None):
         name += "-init_%.2f" % model_args.weight_init
 
     if 'tied_emb' in model_args.__dict__:
-        name += "-%stied" % model_args.tied_emb
+        if model_args.tied_emb:
+            name += "-%stied" % model_args.tied_emb
 
     # Append seed
     name += "-s%d" % train_args.seed
