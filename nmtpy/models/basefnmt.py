@@ -96,6 +96,8 @@ class Model(BaseModel):
             const_file = open('/users/limsi_nmt/burlot/prog/wmt17/constraints.en2cx.bpe')
             #const_file = open('/lium/buster1/garcia/workspace/scripts/latvian/constraints.lv')
             #const_file = open('/lium/buster1/garcia/workspace/scripts/czech/constraints.cs')
+            #const_file = open('/lium/buster1/garcia/workspace/scripts/czech/constraints.bpe.cs')
+            #const_file = open('/lium/buster1/garcia/workspace/scripts/czech/constraints.noprev.bpe.cs')
             print("Constrained search", const_file)
         except FileNotFoundError:
             print("File with factor constraints not found: unconstrained search")
@@ -196,18 +198,12 @@ class Model(BaseModel):
             next_states[i], text_ctxs[i], aux_ctxs[i] = result[0], result[1], result[2:]
             tiled_ctxs[i] = np.tile(text_ctxs[i], [1, 1])
 
-
-#        next_state, ctx0 = f_inits[0](inputs[0])
-
         # Beginning-of-sentence indicator is -1
         next_w_lem = -1 * np.ones((1,)).astype(INT)
         next_w_fact = -1 * np.ones((1,)).astype(INT)
 
-#        maxlen = inputs[0].shape[0] * 3
         # FIXME: This will break if [0] is not the src sentence, e.g. im2txt models
         maxlen = max(maxlen, inputs[0].shape[0] * 3)
-
-#        tiled_ctx = np.tile(ctx0, [1, 1])
 
         # Initial beam size
         live_beam = beam_size
@@ -235,8 +231,6 @@ class Model(BaseModel):
             # Compute sum of log_p's for the current n-gram hypotheses 
             cand_scores_lem = hyp_scores_lem[:, None] - sum(next_log_ps_lem)
             cand_scores_fact = hyp_scores_fact[:, None] - sum(next_log_ps_fact)
-#            cand_scores_lem = hyp_scores_lem[:, None] - next_log_p_lem
-#            cand_scores_fact = hyp_scores_fact[:, None] - next_log_p_fact
             
             # Mean alphas for the mean model (n_models > 1)
             mean_alphas = sum(alphas) / n_models
@@ -256,8 +250,6 @@ class Model(BaseModel):
                 costs_h_lem = cand_h_scores_lem[ranks_lem]
                 # All models should have the same shape for ensamble so we use just the first one 
                 word_indices_lem = ranks_lem % next_log_ps_lem[0].shape[1]
-#                word_indices_lem = ranks_lem % next_log_p_lem.shape[1]
-                #word_indices_fact = ranks_fact % next_log_p_fact.shape[1]
 
                 # get factor constraints for each lemma selected for the beam (Franck)
                 costs_h_fact = {}
@@ -360,7 +352,6 @@ class Model(BaseModel):
                     new_hyp_scores_lem.append(costs_lem[idx])
                     new_hyp_scores_fact.append(costs_fact[idx])
                     # We get the same state from lemmas and factors
-#                    hyp_states.append(next_state[ti])
                     # Hidden state of the decoder for this hypothesis
                     hyp_states.append([next_state[ti] for next_state in next_states])
                     # first position is the lemma and the second the factors
@@ -384,8 +375,6 @@ class Model(BaseModel):
             next_w_fact = np.array([w[-1] for w in hyp_samples_fact])
             next_states = [np.array(st, dtype=FLOAT) for st in zip(*hyp_states)]
             tiled_ctxs  = [np.tile(ctx, [live_beam, 1]) for ctx in text_ctxs]
-#            next_state = np.array(hyp_states, dtype=FLOAT)
-#            tiled_ctx   = np.tile(ctx0, [live_beam, 1])
 
         # dump every remaining hypotheses
         #if live_beam > 0:
