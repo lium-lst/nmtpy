@@ -41,9 +41,16 @@ os.environ["MKL_NUM_THREADS"] = "1"
 # Force CPU
 os.environ["THEANO_FLAGS"] = "device=cpu,optimizer_including=local_remove_all_assert"
 
-def translate_model(rqueue, wqueue, pid, f_inits, f_nexts, beam_search, beam_size, nbest, suppress_unks, get_att_alphas=False, seed=1234):
+def translate_model(rqueue, wqueue, pid, models, beam_size, nbest, suppress_unks, get_att_alphas=False, seed=1234):
+    # Get the method handle
+    beam_search = models[0].beam_search
     """Generates translations with beam search for single and ensemble models."""
     try:
+        # Get function call string
+        f_inits     = [m.f_init for m in models]
+        f_nexts     = [m.f_next for m in models]
+        func_call = 'beam_search(list(data_dict.values()), f_inits, f_nexts, beam_size=beam_size, get_att_alphas=%s, suppress_unks=%s)' % (get_att_alphas, suppress_unks)
+
         while True:
             # Get a sample
             req = rqueue.get()
@@ -52,34 +59,37 @@ def translate_model(rqueue, wqueue, pid, f_inits, f_nexts, beam_search, beam_siz
             sample_idx, data_dict = req[0], req[1]
 
             # Get the translation, its score and alignments
-            # trans_fact will be empty or not depending on model
-            trans, score, align, trans_fact = beam_search(list(data_dict.values()), f_inits, f_nexts,
-                        beam_size=beam_size,
-                        get_att_alphas=get_att_alphas,
-                        suppress_unks=suppress_unks)
+            #trans, score, align = eval(func_call)
+            resp = eval(func_call)
 
-            # normalize scores according to sequence lengths
-            score = score / np.array([len(s) for s in trans])
+            if args.factors:
+                # normalize scores according to sequence lengths
+                trans, score, align, trans_fact = resp
 
-            # Sort the scores and take the best(s) idx(s)
-            best_idxs = np.argsort(score)[:nbest]
+                score = score / np.array([len(s) for s in trans])
 
-            # 2nd output
-            #trans_fact = np.array(trans_fact)[best_idxs]
-                #trans, score, align, trans_fact = resp
-                #trans = np.array(trans)[best_idxs]
+                # Sort the scores and take the best(s) idx(s)
+                best_idxs = np.argsort(score)[:nbest]
+                trans = np.array(trans)[best_idxs]
+                trans_fact = np.array(trans_fact)[best_idxs]
+            else:
+                trans, score, align = resp
+                # normalize scores according to sequence lengths
+                score = score / np.array([len(s) for s in trans])
+
+                # Sort the scores and take the best(s) idx(s)
+                best_idxs = np.argsort(score)[:nbest]
+                trans = np.array(trans)[best_idxs]
 
             # Check for attention weights
             if align is not None:
                 align = np.array(align)[best_idxs]
 
-            # Send response back, trans_fact can be empty
-            wqueue.put((sample_idx, trans, score[best_idxs], align, trans_fact))
             # Send response back
-            #if args.factors:
-            #    wqueue.put((sample_idx, trans, score[best_idxs], align, trans_fact))
-            #else:
-            #    wqueue.put((sample_idx, trans, score[best_idxs], align))
+            if args.factors:
+                wqueue.put((sample_idx, trans, score[best_idxs], align, trans_fact))
+            else:
+                wqueue.put((sample_idx, trans, score[best_idxs], align))
     except Exception as e:
         traceback.print_exc()
         # Signal error back
@@ -217,17 +227,12 @@ class Translator(object):
         # create input and output queues for processes
         write_queue = Queue()
         read_queue  = Queue()
-        
-        # Get theano functions and beam_search to pass to workers
-        f_inits     = [m.f_init for m in self.models]
-        f_nexts     = [m.f_next for m in self.models]
-        beam_search = self.models[0].beam_search
 
         # Create processes
         for idx in range(self.n_jobs):
             self.processes[idx] = Process(target=translate_model,
-                                          args=(write_queue, read_queue, idx, f_inits, f_nexts, beam_search, self.beam_size,
-                                          self.nbest, self.suppress_unks, self.export,
+                                          args=(write_queue, read_queue, idx, self.models, self.beam_size,
+                                          self.nbest, self.suppress_unks, self.get_att_alphas,
                                           self.seed))
             # Start process and register for cleanup
             self.processes[idx].start()
@@ -267,8 +272,7 @@ class Translator(object):
             sample_idx = resp[0]
 
             # Get the hypotheses, scores and attention weights if any
-            hyps, self.scores[sample_idx], attw, trans_fact = resp[1:]
-            #hyps, self.scores[sample_idx], attw = resp[1], resp[2], resp[3]
+            hyps, self.scores[sample_idx], attw = resp[1], resp[2], resp[3]
 
             # Did we receive attention weights from beam search?
             if attw is not None:
@@ -276,8 +280,8 @@ class Translator(object):
 
             # Place the hypotheses into their relevant places
             self.trans[sample_idx] = [idx_to_sent(self.trg_idict, hyp) for hyp in hyps]
-            self.trans_fact[sample_idx] = [idx_to_sent(self.trgfact_idict, hyp) for hyp in trans_fact]
-            #self.trans_fact[sample_idx] = [idx_to_sent(self.trgfact_idict, hyp) for hyp in resp[4]]
+            if args.factors:
+                self.trans_fact[sample_idx] = [idx_to_sent(self.trgfact_idict, hyp) for hyp in resp[4]]
 
             # Print progress
             if (i+1) % 100 == 0:
