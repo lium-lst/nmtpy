@@ -10,10 +10,7 @@ import time
 import os
 
 class MainLoop(object):
-    def __init__(self, model, logger, train_args, model_args):
-        # NOTE: model_args not used, if necessary they should be accessible
-        # from self.model.*
-
+    def __init__(self, model, logger, train_args):
         self.model          = model                         # The model instance that is trained
         self.__log          = logger                        # logger instance
 
@@ -30,22 +27,16 @@ class MainLoop(object):
 
         # Validation related parameters
         self.patience       = train_args.patience           # Stop training if no improvement after this validations
+        self.patience_delta = train_args.patience_delta     # Absolute difference that counts as an improvement
         self.valid_start    = train_args.valid_start        # Start validation at epoch 'valid_start'
         self.beam_size      = train_args.valid_beam         # Beam size for validation decodings
         self.njobs          = train_args.valid_njobs        # # of CPU processes for validation decodings
         self.f_valid        = train_args.valid_freq         # Validation frequency in terms of updates
         self.epoch_valid    = (self.f_valid == 0)           # 0: end of epochs
         self.valid_save_hyp = train_args.valid_save_hyp     # save validation hypotheses under 'valid_hyps' folder
-        self.f_verbose      = 10                            # Print frequency
-
-        # TODO: Remove sampling stuff, not useful
-        self.f_sample       = train_args.sample_freq
-        self.do_sampling    = self.f_sample > 0
-        self.n_samples      = 5                             # Number of samples to produce
+        self.f_verbose      = train_args.disp_freq          # Print frequency
 
         self.epoch_losses   = []
-        
-        self.factors        = model_args.factors
 
         # Multiple comma separated metrics are supported
         # Each key is a metric name, values are metrics so far.
@@ -53,11 +44,6 @@ class MainLoop(object):
 
         # We may have no validation data.
         if self.f_valid >= 0:
-            # NOTE: This is relevant only for fusion models + WMTIterator
-            self.valid_mode = 'single'
-            if 'valid_mode' in self.model.__dict__:
-                self.valid_mode = self.model.valid_mode
-
             # Setup validation hypotheses folder name
             if self.valid_save_hyp:
                 base_folder = self.model.save_path + '.valid_hyps'
@@ -176,9 +162,6 @@ class MainLoop(object):
             # Update learning rate if requested
             self.__update_lrate()
 
-            # Do sampling
-            self.__do_sampling(data)
-
             # Do validation
             if not self.epoch_valid and self.f_valid > 0 and self.uctr % self.f_valid == 0:
                 self.__do_validation()
@@ -205,17 +188,6 @@ class MainLoop(object):
             return False
 
         return True
-
-    def __do_sampling(self, data):
-        """Generates samples and prints them."""
-        if self.do_sampling and self.uctr % self.f_sample == 0:
-            samples = self.model.generate_samples(data, self.n_samples)
-            if samples is not None:
-                for src, truth, sample in samples:
-                    if src:
-                        self.__print("Source: %s" % src)
-                    self.__print.info("Sample: %s" % sample)
-                    self.__print.info(" Truth: %s" % truth)
 
     def __do_validation(self):
         """Do early-stopping validation."""
@@ -249,8 +221,6 @@ class MainLoop(object):
                 beam_results = self.model.run_beam_search(beam_size=self.beam_size,
                                                           n_jobs=self.njobs,
                                                           metric=self.beam_metrics,
-                                                          mode='beamsearch',
-                                                          valid_mode=self.valid_mode,
                                                           f_valid_out=f_valid_out)
                 beam_time = time.time() - beam_time
                 self.__print('Beam-search ended, took %.5f minutes.' % (beam_time / 60.))
@@ -270,16 +240,7 @@ class MainLoop(object):
                     return
 
             # Is this the best evaluation based on early-stop metric?
-            if is_last_best(self.early_metric, self.valid_metrics[self.early_metric]):
-                if self.valid_save_hyp:
-                    # Create a link towards best hypothesis file
-                    if self.factors:
-                        # For factors mode is compulsary to save those files to call the script to combine them
-                        force_symlink(f_valid_out+'.lem', '%s.BEST.lem' % self.valid_save_prefix, relative=True)
-                        force_symlink(f_valid_out+'.fact', '%s.BEST.fact' % self.valid_save_prefix, relative=True)
-                    else:
-                        force_symlink(f_valid_out, '%s.BEST' % self.valid_save_prefix, relative=True)
-
+            if is_last_best(self.early_metric, self.valid_metrics[self.early_metric], self.patience_delta):
                 self.__save_best_model()
                 self.early_bad = 0
             else:
@@ -316,7 +277,6 @@ class MainLoop(object):
     def run(self):
         """Run training loop."""
         self.model.set_dropout(True)
-        #self.model.save(self.model.save_path + '.npz')
         while self.__train_epoch():
             pass
 
