@@ -337,11 +337,13 @@ class Model(BaseModel):
                 # Form the new hypothesis by appending new word to the left hyp
                 new_hyp_lem = hyp_samples_lem[ti] + [wi[0]]
                 new_hyp_fact = hyp_samples_fact[ti] + [wi[1]]
+#                new_ali = hyp_alignments[ti] + [alphas[ti]]
                 new_ali = hyp_alignments[ti] + [mean_alphas[ti]]
                 if wi[0] == 0:
                     # <eos> found in lemmas, separate out finished hypotheses
                     final_sample_lem.append(new_hyp_lem)
                     final_score_lem.append(costs_lem[idx])
+                    #final_sample_fact.append(new_hyp_fact)
                     final_sample_fact.append(hyp_samples_fact[ti])
                     final_score_fact.append(costs_fact[idx])
                     final_alignments.append(new_ali)
@@ -390,6 +392,7 @@ class Model(BaseModel):
         if not kwargs.get('get_att_alphas', False):
             # Don't send back alignments for nothing
             final_alignments = None
+
         return final_sample_lem, final_score, final_alignments, final_sample_fact
 
     def info(self):
