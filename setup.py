@@ -44,6 +44,7 @@ setup(
                     'bin/nmt-translate',
                     'bin/nmt-translate-factors', # Factored NMT variant.
                     'bin/nmt-build-dict',
+                    'bin/nmt-rescore',
                     'bin/nmt-coco-metrics',
                     'bin/nmt-bpe-apply',
                     'bin/nmt-bpe-learn',

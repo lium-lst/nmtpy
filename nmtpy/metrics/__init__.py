@@ -22,7 +22,7 @@ def get_scorer(scorer):
                 'factors2word': Factors2word,
               }
 
-    return scorers[scorer]
+    return scorers[scorer]()
 
 def is_last_best(name, history):
     """Checks whether the last element is the best score so far."""

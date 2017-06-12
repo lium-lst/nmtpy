@@ -288,3 +288,15 @@ def get_next_runid(save_path, exp_id):
         i += 1
 
     return i
+
+def get_model_options(optdict):
+    """Get model options by maintaining backward compatibility."""
+    optdict = optdict.tolist()
+     
+    # tied_trg_emb, i.e. renamed to tied_emb
+    if 'tied_trg_emb' in optdict and 'tied_emb' not in optdict:
+        optdict['tied_emb'] = '2way'
+        del optdict['tied_trg_emb']
+         
+    return optdict
+
