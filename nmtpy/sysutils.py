@@ -140,14 +140,14 @@ def get_temp_file(suffix="", name=None, delete=False):
         cleanup.register_tmp_file(t.name)
     return t
 
-def get_valid_evaluation(save_path, beam_size, n_jobs, mode, metric,
-                         valid_mode='single', trans_cmd='nmt-translate', f_valid_out=None, factors=None):
+def get_valid_evaluation(save_path, beam_size, n_jobs, metric,
+                         trans_cmd='nmt-translate', f_valid_out=None, factors=None):
     """Run nmt-translate for validation during training."""
-    cmd = [trans_cmd, "-b", str(beam_size), "-D", mode,
-           "-j", str(n_jobs), "-m", save_path, "-M", metric, "-v", valid_mode]
+    cmd = [trans_cmd, "-b", str(beam_size), "-j", str(n_jobs), "-m", save_path]
+    cmd.extend(["-M"] + metric.split(','))
     # Factors option needs -fa option with the script and 2 output files
     if factors:
-        cmd.extend(["-fa", factors, "-o", f_valid_out+'.lem', f_valid_out+'.fact'])
+        cmd.extend(["-f", factors, "-o", f_valid_out+'.lem', f_valid_out+'.fact'])
 
     elif f_valid_out is not None:
         cmd.extend(["-o", f_valid_out])
@@ -273,6 +273,10 @@ def get_exp_identifier(train_args, model_args, suffix=None):
     else:
         name += "-init_%.2f" % model_args.weight_init
 
+    if 'tied_emb' in model_args.__dict__:
+        if model_args.tied_emb:
+            name += "-%stied" % model_args.tied_emb
+
     # Append seed
     name += "-s%d" % train_args.seed
 
@@ -292,11 +296,10 @@ def get_next_runid(save_path, exp_id):
 def get_model_options(optdict):
     """Get model options by maintaining backward compatibility."""
     optdict = optdict.tolist()
-     
+
     # tied_trg_emb, i.e. renamed to tied_emb
     if 'tied_trg_emb' in optdict and 'tied_emb' not in optdict:
         optdict['tied_emb'] = '2way'
         del optdict['tied_trg_emb']
-         
-    return optdict
 
+    return optdict
