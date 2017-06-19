@@ -3,10 +3,6 @@
 import os
 import time
 
-# Avoid thread explosion
-os.environ["OMP_NUM_THREADS"] = "1"
-os.environ["MKL_NUM_THREADS"] = "1"
-
 import sys
 import argparse
 import platform
@@ -25,6 +21,11 @@ import nmtpy.cleanup as cleanup
 # Import defaults
 from nmtpy.defaults import TRAIN_DEFAULTS as trdefs
 from nmtpy.defaults import MODEL_DEFAULTS as mddefs
+
+# Avoid thread explosion
+os.environ["OMP_NUM_THREADS"] = "1"
+os.environ["MKL_NUM_THREADS"] = "1"
+os.environ["OPENBLAS_NUM_THREADS"] = "1"
 
 if __name__ == '__main__':
     # Pretty print defaults
