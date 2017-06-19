@@ -87,29 +87,29 @@ class Model(BaseModel):
         # all others are allowed factors for the lemma. Ex.:
         # dog noun+singular noun+plural
         # TODO in future we will do something to avoid global vars (include self in beam_search?)
-        global fact_constraints
-        fact_constraints = defaultdict(lambda: np.array(range(len(trgfact_idict))))
-        try:
+#        global fact_constraints
+#        fact_constraints = defaultdict(lambda: np.array(range(len(trgfact_idict))))
+#        try:
             # Set the path to file with factor constraints
             # TODO set this file in conf and new parameter in nmt-translate-factors
             # dictionary with lemma and factors, each line lemma factor1 factor2 factor3
-            const_file = open('/users/limsi_nmt/burlot/prog/wmt17/constraints.en2cx.bpe')
+#            const_file = open('/users/limsi_nmt/burlot/prog/wmt17/constraints.en2cx.bpe')
             #const_file = open('/lium/buster1/garcia/workspace/scripts/latvian/constraints.lv')
             #const_file = open('/lium/buster1/garcia/workspace/scripts/czech/constraints.cs')
             #const_file = open('/lium/buster1/garcia/workspace/scripts/czech/constraints.bpe.cs')
             #const_file = open('/lium/buster1/garcia/workspace/scripts/czech/constraints.noprev.bpe.cs')
-            print("Constrained search", const_file)
-        except FileNotFoundError:
-            print("File with factor constraints not found: unconstrained search")
-            const_file = []
-        for line in const_file:
-            line = line.split()
-            try:
-                lem = self.trg_dict[line[0]]
-            except KeyError:
-                continue
-            facts = [self.trgfact_dict.get(f, self.trgfact_dict['<unk>']) for f in line[1:]]
-            fact_constraints[lem] = np.array(facts)
+#            print("Constrained search", const_file)
+#        except FileNotFoundError:
+#            print("File with factor constraints not found: unconstrained search")
+#            const_file = []
+#        for line in const_file:
+#            line = line.split()
+#            try:
+#                lem = self.trg_dict[line[0]]
+#            except KeyError:
+#                continue
+#            facts = [self.trgfact_dict.get(f, self.trgfact_dict['<unk>']) for f in line[1:]]
+#            fact_constraints[lem] = np.array(facts)
 
         # Limit shortlist sizes
         self.n_words_src = min(self.n_words_src, len(self.src_dict)) \
@@ -157,9 +157,9 @@ class Model(BaseModel):
         return {metric: result[metric]}
 
     @staticmethod
-    def beam_search(inputs, f_inits, f_nexts, beam_size=12, maxlen=50, suppress_unks=False, **kwargs):
+    def beam_search(inputs, f_inits, f_nexts, beam_size=12, maxlen=50, suppress_unks=False, fact_constraints=[], **kwargs):
         # TODO After deadline evaluation WMT17, we will do something to avoid global vars (include self in beam_search changing nmt-translate-factors)
-        global fact_constraints
+        #global fact_constraints
         # Final results and their scores
         final_sample_lem = []
         final_score_lem = []

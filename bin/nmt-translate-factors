@@ -15,7 +15,7 @@ import importlib
 import traceback
 from multiprocessing import Process, Queue, cpu_count
 
-from collections import OrderedDict
+from collections import OrderedDict, defaultdict
 
 import numpy as np
 
@@ -41,7 +41,7 @@ os.environ["MKL_NUM_THREADS"] = "1"
 # Force CPU
 os.environ["THEANO_FLAGS"] = "device=cpu,optimizer_including=local_remove_all_assert"
 
-def translate_model(rqueue, wqueue, pid, f_inits, f_nexts, beam_search, beam_size, nbest, suppress_unks, get_att_alphas=False, seed=1234):
+def translate_model(rqueue, wqueue, pid, f_inits, f_nexts, beam_search, beam_size, nbest, suppress_unks, get_att_alphas=False, seed=1234, fact_constraints=[]):
     """Generates translations with beam search for single and ensemble models."""
     try:
         while True:
@@ -55,7 +55,8 @@ def translate_model(rqueue, wqueue, pid, f_inits, f_nexts, beam_search, beam_siz
             trans, score, align, trans_fact = beam_search(list(data_dict.values()), f_inits, f_nexts,
                         beam_size=beam_size,
                         get_att_alphas=get_att_alphas,
-                        suppress_unks=suppress_unks)
+                        suppress_unks=suppress_unks,
+                        fact_constraints=fact_constraints)
 
             # normalize scores according to sequence lengths
             score = score / np.array([len(s) for s in trans])
@@ -85,6 +86,7 @@ class Translator(object):
         self.src_files = args.src_files
         self.ref_files = args.ref_files
         self.factors = args.factors
+        self.constrained = args.constrained
 
         # Collect processed source sentences in here
         # for further exporting to json
@@ -131,6 +133,7 @@ class Translator(object):
             #model.load(data['tparams'].tolist())
             model.load(mfile)
             model.set_dropout(False)
+
             model.build_sampler()
 
             self.models.append(model)
@@ -153,6 +156,33 @@ class Translator(object):
         # Get inverted dictionary from the model itself
         self.trg_idict = self.models[0].trg_idict
         self.trgfact_idict = self.models[0].trgfact_idict
+            
+        # Set contrained decoding
+        # Load constraints on factor predictions (Franck).
+        # The loaded file contains on each line elements
+        # separated by space. The 1st element is the lemma,
+        # all others are allowed factors for the lemma. Ex.:
+        # dog noun+singular noun+plural
+        self.fact_constraints = defaultdict(lambda: np.array(range(len(self.trgfact_idict))))
+        if self.constrained:
+            try:
+                # Set the path to file with factor constraints
+                # TODO set this file in conf and new parameter in nmt-translate-factors
+                # dictionary with lemma and factors, each line lemma factor1 factor2 factor3
+                const_file = open(self.constrained)
+                print("Constrained search", const_file)
+            except FileNotFoundError:
+                print("File with factor constraints not found: unconstrained search")
+                const_file = []
+            for line in const_file:
+                line = line.split()
+                try:
+                    lem = self.models[0].trg_dict[line[0]]
+                except KeyError:
+                    continue
+                facts = [self.models[0].trgfact_dict.get(f, self.models[0].trgfact_dict['<unk>']) for f in line[1:]]
+                self.fact_constraints[lem] = np.array(facts)
+
 
         #########################
         # Normal translation mode
@@ -229,7 +259,8 @@ class Translator(object):
             self.processes[idx] = Process(target=translate_model,
                                           args=(write_queue, read_queue, idx, f_inits, f_nexts, beam_search, self.beam_size,
                                           self.nbest, self.suppress_unks, self.export,
-                                          self.seed))
+                                          self.seed,
+                                          self.fact_constraints))
             # Start process and register for cleanup
             self.processes[idx].start()
             cleanup.register_proc(self.processes[idx].pid)
@@ -432,7 +463,8 @@ if __name__ == "__main__":
                                                               default=None, help="One or multiple reference files (default: validation set)")
     parser.add_argument('-m', '--models'        , nargs='+', required=True, help="Model files")
     # default factors is evalf meanwhile this nmt-translate-factors remains in a different file than nmt-translate
-    parser.add_argument('-f', '--factors'       , type=str, default='evalf', help="Activate factors. The value can be evalf to evaluate just with the first output or the script to combine the 2 outputs (default=evalf)")
+    parser.add_argument('-f', '--factors'       , type=str, default='evalf',help="Activate factors. The value can be evalf to evaluate just with the first output or the script to combine the 2 outputs (default=evalf)")
+    parser.add_argument('-c', '--constrained'   , type=str, default=None,   help="Do constrained decoding with the file provided as argument.")
 
     args = parser.parse_args()
 
