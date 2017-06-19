@@ -166,8 +166,6 @@ class Translator(object):
         self.fact_constraints = defaultdict(lambda: np.array(range(len(self.trgfact_idict))))
         if self.constrained:
             try:
-                # Set the path to file with factor constraints
-                # TODO set this file in conf and new parameter in nmt-translate-factors
                 # dictionary with lemma and factors, each line lemma factor1 factor2 factor3
                 const_file = open(self.constrained)
                 print("Constrained search", const_file)
@@ -464,7 +462,7 @@ if __name__ == "__main__":
     parser.add_argument('-m', '--models'        , nargs='+', required=True, help="Model files")
     # default factors is evalf meanwhile this nmt-translate-factors remains in a different file than nmt-translate
     parser.add_argument('-f', '--factors'       , type=str, default='evalf',help="Activate factors. The value can be evalf to evaluate just with the first output or the script to combine the 2 outputs (default=evalf)")
-    parser.add_argument('-c', '--constrained'   , type=str, default=None,   help="Do constrained decoding with the file provided as argument.")
+    parser.add_argument('-c', '--constrained'   , type=str, default=None,   help="Do constrained decoding providing a dictionary with lemma and factors, each line lemma factor1 factor2 factor3.")
 
     args = parser.parse_args()
 

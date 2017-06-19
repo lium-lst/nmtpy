@@ -86,12 +86,10 @@ class Model(BaseModel):
         # separated by space. The 1st element is the lemma,
         # all others are allowed factors for the lemma. Ex.:
         # dog noun+singular noun+plural
-        # TODO in future we will do something to avoid global vars (include self in beam_search?)
 #        global fact_constraints
 #        fact_constraints = defaultdict(lambda: np.array(range(len(trgfact_idict))))
 #        try:
             # Set the path to file with factor constraints
-            # TODO set this file in conf and new parameter in nmt-translate-factors
             # dictionary with lemma and factors, each line lemma factor1 factor2 factor3
 #            const_file = open('/users/limsi_nmt/burlot/prog/wmt17/constraints.en2cx.bpe')
             #const_file = open('/lium/buster1/garcia/workspace/scripts/latvian/constraints.lv')
@@ -158,7 +156,6 @@ class Model(BaseModel):
 
     @staticmethod
     def beam_search(inputs, f_inits, f_nexts, beam_size=12, maxlen=50, suppress_unks=False, fact_constraints=[], **kwargs):
-        # TODO After deadline evaluation WMT17, we will do something to avoid global vars (include self in beam_search changing nmt-translate-factors)
         #global fact_constraints
         # Final results and their scores
         final_sample_lem = []
