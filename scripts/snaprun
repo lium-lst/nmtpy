@@ -6,8 +6,8 @@
 #  3. Start training by prefixing your command with snaprun:
 #   $ snaprun nmt-train -c foobar.conf
 
-# Source tree to use as nmtpy
-NMTPY=
+# Source tree to use as nmtpy unless NMTPY= is set from cmdline
+NMTPY=${NMTPY:=~/git/nmtpy-merge}
 
 # Enter to $NMTPY
 pushd $NMTPY
