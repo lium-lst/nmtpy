@@ -7,6 +7,18 @@ Feel free to send an e-mail to ozan.caglayan.etu@univ-lemans.fr for an invitatio
 
 ----
 
+If you use **nmtpy**, you may want to cite the following paper:
+```
+@article{nmtpy,
+  author    = {Caglayan, Ozan  and Garc\'{i}a-Mart\'{i}nez, Mercedes and Bardet, Adrien and Aransa, Walid  and  Bougares, Fethi  and  Barrault, Lo\"{i}c},
+  title     = {NMTPY: A Flexible Toolkit for Advanced Neural Machine Translation Systems},
+  journal   = {arXiv preprint arXiv:1706.00457},
+  year      = {2017},
+  url       = {http://arxiv.org/abs/1706.00457},
+  }
+```
+
+----
 
 **nmtpy** is a suite of Python tools, primarily based on the starter code provided in [dl4mt-tutorial](https://github.com/nyu-dl/dl4mt-tutorial) for training neural machine translation networks using Theano.
 
