@@ -78,7 +78,7 @@ The Factored NMT models defined by basefnmt.py are based on the NMT architecture
 
 Folder `ted-factors` contains examples of how to use this system.
 
-###Citation:
+### Citation:
 
 If you use fnmt system in your work, please cite the following:
 
