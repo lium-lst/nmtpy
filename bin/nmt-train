@@ -230,6 +230,8 @@ if __name__ == '__main__':
 
     # Create mainloop
     loop = MainLoop(model, log, train_args)
-    log.info('Training started on %s' % time.strftime('%d-%m-%Y %H:%M'))
+    
+    # Start training, log dates
+    log.info('Trainin started on %s' % time.strftime('%d-%m-%Y %H:%M'))
     loop.run()
     log.info('Training finished on %s' % time.strftime('%d-%m-%Y %H:%M'))
