@@ -114,12 +114,8 @@ class Translator(object):
     def set_model_options(self):
         for mfile in self.model_files:
             log.info('Initializing model %s' % os.path.basename(mfile))
-            # Load model file
-            #data = np.load(mfile)
-            
+
             # Fetch options
-            # NOTE get_model_options does not work with factors
-            #model_options = get_model_options(data['opts'])
             model_options = dict(np.load(mfile)['opts'].tolist())
 
             # Import the module
@@ -129,9 +125,8 @@ class Translator(object):
             model = self.__class(seed=self.seed, logger=None, **model_options)
             
             # Load weights from the already loaded file
-            # NOTE load data does not work with factors
-            #model.load(data['tparams'].tolist())
             model.load(mfile)
+
             model.set_dropout(False)
 
             model.build_sampler()
@@ -146,6 +141,7 @@ class Translator(object):
             assert len(set([len(mopts['trgfact_dict']) for mopts in self.model_options])) == 1, \
                     "Target factors vocabularies should be the same for ensembling."
 
+
         # Check for post-processing filter
         # NOTE: Filters should be the same for each model during ensembling
         if "filter" in self.model_options[0] and not self.no_filters:
@@ -154,6 +150,7 @@ class Translator(object):
             self.filters = [get_filter(f) for f in filters]
 
         # Get inverted dictionary from the model itself
+        # NOTE: Target dictionary should be the same for each model during ensembling
         self.trg_idict = self.models[0].trg_idict
         self.trgfact_idict = self.models[0].trgfact_idict
             
@@ -181,7 +178,6 @@ class Translator(object):
                 facts = [self.models[0].trgfact_dict.get(f, self.models[0].trgfact_dict['<unk>']) for f in line[1:]]
                 self.fact_constraints[lem] = np.array(facts)
 
-
         #########################
         # Normal translation mode
         #########################
@@ -199,6 +195,7 @@ class Translator(object):
                         exit()
                     self.models[0].data['valid_trg1'] = self.ref_files[1]
                     self.models[0].data['valid_trg2'] = self.ref_files[2]
+
 
         # Initialize model's validation data iterator
         self.models[0].load_valid_data(from_translate=True)
@@ -232,7 +229,9 @@ class Translator(object):
 
         log.info('I will translate %d samples' % self.n_sentences)
 
+        ###################
         # Print information
+        ###################
         log.info("Source file(s)")
         for f in self.src_files:
             log.info("  %s" % f)
@@ -303,6 +302,7 @@ class Translator(object):
             if attw is not None:
                 self.att_weights[sample_idx] = attw[0]
 
+            # FIXME: Improve
             # Place the hypotheses into their relevant places
             self.trans[sample_idx] = [idx_to_sent(self.trg_idict, hyp) for hyp in hyps]
             self.trans_fact[sample_idx] = [idx_to_sent(self.trgfact_idict, hyp) for hyp in trans_fact]
@@ -362,7 +362,6 @@ class Translator(object):
                 self.hyps = [s[0] for s in trans]
                 hyps = "\n".join(self.hyps) + "\n"
                 f.write(hyps)
-
 
     def compute_fact_score(self, hyp_files, scorers):
         """Computes evaluation metrics for the hypotheses."""
@@ -504,6 +503,7 @@ if __name__ == "__main__":
         # Compute all metrics
         # Factors evaluation combining the 2 outputs
         results = translator.compute_fact_score(out_file, args.metrics)
+
         # NOTE: This dict is expected from nmt-translate for obtaining the validation results.
         print(results)
 

@@ -48,7 +48,6 @@ class Tester(object):
         self.ref_files = args.ref_files
 
         self.n_jobs = args.n_jobs
-        self.mode = args.decoder
         self.model_file = args.model
 
         # Not used
@@ -166,7 +165,6 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(prog='lm-test')
     parser.add_argument('-j', '--n-jobs'        , type=int, default=8,
                                                   help="Number of processes (default: 8, 0: Auto)")
-    parser.add_argument('-D', '--decoder'        ,default='beamsearch', choices=['beamsearch', 'argmax', 'sample', 'forced'], help="Decoding mode")
 
     parser.add_argument('-m', '--model'         , type=str, help="Model file", required=True)
     parser.add_argument('-o', '--saveto'        , type=str, help="Output test file (if not given, only metrics will be printed)",
@@ -181,11 +179,6 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-    # TODO: Do we have forced decoding mode for lm-test?
-    if args.decoder == "forced" and (args.src_files is None or args.ref_files is None):
-        log.info("Error: Forced decoding requires that you give src and ref files explicitly.")
-        sys.exit(1)
-
     if args.n_jobs == 0:
         # Auto infer CPU number
         args.n_jobs = (cpu_count() / 2) - 1
@@ -194,6 +187,7 @@ if __name__ == "__main__":
     # each process to use a single thread.
     os.environ["OMP_NUM_THREADS"] = "1"
     os.environ["MKL_NUM_THREADS"] = "1"
+    os.environ["OPENBLAS_NUM_THREADS"] = "1"
 
     # Force CPU
     os.environ["THEANO_FLAGS"] = "device=cpu"

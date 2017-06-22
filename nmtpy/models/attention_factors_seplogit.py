@@ -23,7 +23,6 @@ from ..sysutils import readable_size, get_temp_file, get_valid_evaluation
 from .basefnmt import Model as AttentionFnmt
 
 class Model(AttentionFnmt):
-    
     ###################################################################
     # The following methods can be redefined in child models inheriting
     # from this basic Attention model.

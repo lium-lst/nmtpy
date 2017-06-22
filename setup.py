@@ -41,6 +41,7 @@ setup(
         scripts=[
                     'bin/nmt-train',
                     'bin/nmt-extract',
+                    'bin/nmt-rescore',
                     'bin/nmt-translate',
                     'bin/nmt-translate-factors', # Factored NMT variant.
                     'bin/nmt-build-dict',

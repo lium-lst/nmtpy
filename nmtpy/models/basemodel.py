@@ -1,6 +1,4 @@
 # -*- coding: utf-8 -*-
-import importlib
-
 from collections import OrderedDict
 
 from abc import ABCMeta, abstractmethod
@@ -13,15 +11,7 @@ import numpy as np
 from ..nmtutils import unzip, get_param_dict
 from ..sysutils import readable_size, get_temp_file, get_valid_evaluation
 from ..defaults import INT, FLOAT
-
-#######################################
-## For debugging function input outputs
-def inspect_inputs(i, node, fn):
-    print('>> Inputs: ', i, node, [input[0] for input in fn.inputs])
-
-def inspect_outputs(i, node, fn):
-    print('>> Outputs: ', i, node, [input[0] for input in fn.outputs])
-#######################################
+from ..optimizers import get_optimizer
 
 class BaseModel(object, metaclass=ABCMeta):
     def __init__(self, **kwargs):
@@ -49,14 +39,21 @@ class BaseModel(object, metaclass=ABCMeta):
         # A theano shared variable for lrate annealing
         self.learning_rate  = None
 
+        # Optimizer instance (will not be serialized)
+        self.__opt          = None
+
     @staticmethod
     def beam_search(inputs, f_inits, f_nexts, beam_size=12, maxlen=100, suppress_unks=False, **kwargs):
         # Override this from your classes
         pass
 
     def set_options(self, optdict):
-        """Filter out None's and save option dict."""
-        self.options = OrderedDict([(k,v) for k,v in optdict.items() if v is not None])
+        """Filter out None's and '__[a-zA-Z]' then store into self.options."""
+        self.options = OrderedDict()
+        for k,v in optdict.items():
+            # Don't keep model attributes with __ prefix
+            if v is not None and not k.startswith('__'):
+                self.options[k] = v
 
     def set_trng(self, seed):
         """Set the seed for Theano RNG."""
@@ -71,10 +68,7 @@ class BaseModel(object, metaclass=ABCMeta):
 
     def update_lrate(self, lrate):
         """Update learning rate."""
-        # Update model's value
-        self.lrate = lrate
-        # Update shared variable used withing the optimizer
-        self.learning_rate.set_value(self.lrate)
+        self.__opt.set_lrate(lrate)
 
     def get_nb_params(self):
         """Return the number of parameters of the model."""
@@ -87,13 +81,16 @@ class BaseModel(object, metaclass=ABCMeta):
         else:
             np.savez(fname, opts=self.options)
 
-    def load(self, fname):
+    def load(self, params):
         """Restore .npz checkpoint file into model."""
         self.tparams = OrderedDict()
 
-        params = get_param_dict(fname)
+        if isinstance(params, str):
+            # Filename, load from it
+            params = get_param_dict(params)
+
         for k,v in params.items():
-            self.tparams[k] = theano.shared(v, name=k)
+            self.tparams[k] = theano.shared(v.astype(FLOAT), name=k)
 
     def init_shared_variables(self):
         """Initialize the shared variables of the model."""
@@ -149,7 +146,7 @@ class BaseModel(object, metaclass=ABCMeta):
                                            g))
         return new_grads
 
-    def build_optimizer(self, cost, regcost, clip_c, dont_update=None, debug=False):
+    def build_optimizer(self, cost, regcost, clip_c, dont_update=None, opt_history=None):
         """Build optimizer by optionally disabling learning for some weights."""
         tparams = OrderedDict(self.tparams)
 
@@ -183,26 +180,18 @@ class BaseModel(object, metaclass=ABCMeta):
         if clip_c > 0:
             grads = self.get_clipped_grads(grads, clip_c)
 
-        # Load optimizer
-        opt = importlib.import_module("nmtpy.optimizers").__dict__[self.optimizer]
-
-        # Create theano shared variable for learning rate
-        # self.lrate comes from **kwargs / nmt-train params
-        self.learning_rate = theano.shared(np.float64(self.lrate).astype(FLOAT), name='lrate')
+        # Create optimizer, self.lrate is passed from nmt-train
+        self.__opt = get_optimizer(self.optimizer)(lr0=self.lrate)
+        self.__opt.set_trng(self.trng)
+        #TODO: parameterize this! self.__opt.set_gradient_noise(0.1)
 
         # Get updates
-        updates = opt(tparams, grads, self.inputs.values(), final_cost, lr0=self.learning_rate)
+        updates = self.__opt.get_updates(tparams, grads, opt_history)
 
         # Compile forward/backward function
-        if debug:
-            self.train_batch = theano.function(list(self.inputs.values()), norm_cost, updates=updates,
-                                               mode=theano.compile.MonitorMode(
-                                                   pre_func=inspect_inputs,
-                                                   post_func=inspect_outputs))
-        else:
-            self.train_batch = theano.function(list(self.inputs.values()), norm_cost, updates=updates)
+        self.train_batch = theano.function(list(self.inputs.values()), norm_cost, updates=updates)
 
-    def run_beam_search(self, beam_size=12, n_jobs=8, metric='bleu', mode='beamsearch', valid_mode='single', f_valid_out=None):
+    def run_beam_search(self, beam_size=12, n_jobs=8, metric='bleu', f_valid_out=None):
         """Save model under /tmp for passing it to nmt-translate."""
         # Save model temporarily
         with get_temp_file(suffix=".npz", delete=True) as tmpf:
@@ -210,66 +199,11 @@ class BaseModel(object, metaclass=ABCMeta):
             result = get_valid_evaluation(tmpf.name,
                                           beam_size=beam_size,
                                           n_jobs=n_jobs,
-                                          mode=mode,
                                           metric=metric,
-                                          valid_mode=valid_mode,
                                           f_valid_out=f_valid_out)
 
         # Return every available metric back
         return result
-
-    def gen_sample(self, input_dict, maxlen=100, argmax=False):
-        """Generate samples, do greedy (argmax) decoding or forced decoding."""
-        # A method that samples or takes the max proba's or
-        # does a forced decoding depending on the parameters.
-        final_sample = []
-        final_score = 0
-
-        target = None
-        if "y_true" in input_dict:
-            # We're doing forced decoding
-            target = input_dict.pop("y_true")
-            maxlen = len(target)
-
-        inputs = list(input_dict.values())
-
-        next_state, ctx0 = self.f_init(*inputs)
-
-        # Beginning-of-sentence indicator is -1
-        next_word = np.array([-1], dtype=INT)
-
-        for ii in range(maxlen):
-            # Get next states
-            next_log_p, next_word, next_state = self.f_next(*[next_word, ctx0, next_state])
-
-            if target is not None:
-                nw = int(target[ii])
-
-            elif argmax:
-                # argmax() works the same for both probas and log_probas
-                nw = next_log_p[0].argmax()
-
-            else:
-                # Multinomial sampling
-                nw = next_word[0]
-
-            # 0: <eos>
-            if nw == 0:
-                break
-
-            # Add the word idx
-            final_sample.append(nw)
-            final_score -= next_log_p[0, nw]
-
-        final_sample = [final_sample]
-        final_score = np.array(final_score)
-
-        return final_sample, final_score
-
-    def generate_samples(self, batch_dict, n_samples):
-        # Silently fail if generate_samples is not reimplemented
-        # in child classes
-        return None
 
     def info(self):
         """Reimplement to show model specific information before training."""
@@ -299,5 +233,5 @@ class BaseModel(object, metaclass=ABCMeta):
 
     @abstractmethod
     def build_sampler(self):
-        """Similar to build() but works sequentially for beam-search or sampling."""
+        """Build f_init() and f_next() for beam-search."""
         pass

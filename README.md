@@ -2,6 +2,12 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
+Feel free to send an e-mail to ozan.caglayan.etu@univ-lemans.fr for an invitation to our
+**Slack** channel https://nmtpy.slack.com
+
+----
+
+
 **nmtpy** is a suite of Python tools, primarily based on the starter code provided in [dl4mt-tutorial](https://github.com/nyu-dl/dl4mt-tutorial) for training neural machine translation networks using Theano.
 
 The basic motivation behind forking **dl4mt-tutorial** was to create a framework where it would be
@@ -10,21 +16,22 @@ inheriting from it and overriding some of its methods).
 
 To achieve this purpose, **nmtpy** tries to completely isolate training loop, beam search,
 iteration and model definition:
-  - `nmt-train` script to initiate a training experiment
+  - `nmt-train` script to start a training experiment
   - `nmt-translate` to produce model-agnostic translations. You just pass a trained model's
   checkpoint file and it does its job.
+  - `nmt-rescore` to rescore translation hypotheses using an nmtpy model.
   - An abstract `BaseModel` class to derive from to define your NMT architecture.
   - An abstract `Iterator` to derive from for your custom iterators.
 
 A non-exhaustive list of differences between **nmtpy** and **dl4mt-tutorial** is as follows:
 
 #### General/API
-  - No shell script, everything is in Python 
+  - No shell script, everything is in Python
   - Overhaul object-oriented refactoring of the code: clear separation of API and scripts that interface with the API
   - INI style configuration files to define everything regarding a training experiment
   - Transparent cleanup mechanism to kill stale processes, remove temporary files
   - Simultaneous logging of training details to stdout and log file
-  
+
 #### Training/Inference
   - Supports out-of-the-box BLEU, METEOR and COCO eval metrics
   - Includes [subword-nmt](https://github.com/rsennrich/subword-nmt) utilities for training and applying BPE model
@@ -40,7 +47,7 @@ A non-exhaustive list of differences between **nmtpy** and **dl4mt-tutorial** is
   - Improved parallel translation decoding on CPU
   - Forced decoding i.e. rescoring using NMT
   - Export decoding informations into `json` for further visualization of attention coefficients
-  
+
 #### Deep Learning
   - Improved numerical stability and reproducibility
   - Glorot/Xavier, He, Orthogonal weight initializations
@@ -62,8 +69,8 @@ A non-exhaustive list of differences between **nmtpy** and **dl4mt-tutorial** is
 This is the basic shallow attention based NMT from `dl4mt-tutorial` improved in different ways:
   - 3 forward dropout layers after source embeddings, source context and before softmax managed by the configuration parameters `emb_dropout, ctx_dropout, out_dropout`.
   - Layer normalization for source encoder (`layer_norm:True|False`)
-  - Tied target embeddings (`tied_trg_emb:True|False`)
-  
+  - Tied embeddings (`tied_emb:False|2way|3way`)
+
 This model uses the simple `BitextIterator` i.e. it directly reads plain parallel text files as defined in the experiment configuration file. Please see [this monomodal example](examples/wmt16-mmt-task1/wmt16-mmt-task1-monomodal.conf) for usage.
 
 ### Multimodal NMT / Image Captioning: `fusion*py`

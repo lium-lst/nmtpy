@@ -4,6 +4,7 @@ import os
 import time
 
 import sys
+import inspect
 import argparse
 import platform
 import textwrap
@@ -59,21 +60,19 @@ if __name__ == '__main__':
 
     # Override the model-type given in configuration file to experiment with
     # a different model by fixing every other parameter given in the configuration
+    # NOTE: These 2 can also be overriden by extra arguments (ambiguity)
     parser.add_argument('-m', '--model-type'    , help="Override the model type given in the configuration",
+                                                  type=str)
+    parser.add_argument('-i', '--init'          , help="Pretrained weights .npz extracted with nmt-extract",
                                                   type=str)
 
     parser.add_argument('-s', '--suffix'        , help="Model file suffix",
                                                   type=str, default=None)
-    parser.add_argument('-i', '--init'          , help="Pretrained weights .npz extracted with nmt-extract",
-                                                  type=str)
     parser.add_argument('-f', '--freeze'        , help="Freeze the pretrained weights given with --init",
                                                   action="store_true", default=False)
     parser.add_argument('-t', '--timestamp'     , help="Add timestamp to log messages.",
                                                   action="store_true", default=False)
     parser.add_argument('-n', '--no-log'        , help="Do not log to text file.",
-                                                  action="store_true", default=False)
-
-    parser.add_argument('-v', '--verbose'       , help="Dump Theano graph and inspect optimization.",
                                                   action="store_true", default=False)
 
     # You can basically override everything by passing 'lrate: 0.1' style strings at the end
@@ -84,82 +83,88 @@ if __name__ == '__main__':
     ####################################
     # Parse command-line arguments first
     ####################################
-    cargs   = parser.parse_args()
+    cargs = parser.parse_args().__dict__
 
-    # Pop config filename, verbose flag and extra
-    cfname  = cargs.__dict__.pop('config')
-    verbose = cargs.__dict__.pop('verbose')
-    extra   = cargs.__dict__.pop('extra')
-    suffix  = cargs.__dict__.pop('suffix')
-    tstamp  = cargs.__dict__.pop('timestamp')
-    nolog   = cargs.__dict__.pop('no_log')
-    freeze  = cargs.__dict__.pop('freeze')
+    # Get model_type and init from cmdline if any
+    ext_args = {k: cargs[k] for k in cargs if k in ['model_type', 'init']}
 
-    # Take the remaining command line arguments (model_type and/or init if any)
-    cmd_args = cargs.__dict__
+    # Split and convert extra arguments to dict
+    extras = [e.split(':', 1) for e in cargs['extra']]
 
-    if len(extra) > 0:
-        # Split and convert extra arguments to dict
-        ext_args = [e.split(':', 1) for e in extra]
-        ext_args = dict([(k.strip(), v.strip()) for k,v in ext_args])
-
-        # Merge by prioritizing extra arguments
-        cmd_args.update(ext_args)
+    # Merge init,model_type with extra_args
+    ext_args.update({k.strip(): v.strip() for k,v in extras})
 
     # Parse configuration file and merge with the rest
-    conf = Config(cfname, trdefs=trdefs, mddefs=mddefs, override=cmd_args)
+    conf = Config(cargs['config'], trdefs=trdefs, mddefs=mddefs, override=ext_args)
     train_args, model_args = conf.parse()
 
-    # Create a folder named as conf file
-    folder_name = os.path.splitext(os.path.basename(cfname))[0]
-    model_args.save_path = os.path.join(model_args.save_path, folder_name)
-    ensure_dirs([model_args.save_path])
-
-    # Create a unique experience identifier string
-    exp_id = get_exp_identifier(train_args, model_args, suffix=suffix)
-    # Get unique run identifier (starts from 1)
-    run_id = get_next_runid(model_args.save_path, exp_id)
-    # Get log file name
-    log_fname = None
-    if not nolog:
-        log_fname = os.path.join(model_args.save_path,
-                                "%s.%d.log" % (exp_id, run_id))
-
-    # Start logging module (both to terminal and to file)
-    Logger.setup(log_file=log_fname, timestamp=tstamp)
-    log = Logger.get()
-    cleanup.register_handler(log)
-
-    # Update save_path
-    model_args.save_path = os.path.join(model_args.save_path,
-                                        "%s.%d" % (exp_id, run_id))
-
-    # ensure valid hyps folder if valid_save_hyp is activated
-    if train_args.valid_save_hyp is True:
-        ensure_dirs([model_args.save_path+'.valid_hyps'])
-
-    ###################################
+    #######################
     # Set device for Theano
-    if 'THEANO_FLAGS' not in os.environ:
+    #######################
+    theano_flags = os.environ.get('THEANO_FLAGS', '')
+    if 'device=' not in theano_flags:
         train_args.device_id = get_device(train_args.device_id)
 
         # Check for GPUARRAY to switch to new Theano backend
         if train_args.device_id.startswith('gpu') and "GPUARRAY" in os.environ:
             train_args.device_id = train_args.device_id.replace('gpu', 'cuda')
 
-        os.environ['THEANO_FLAGS'] = "device=%s" % train_args.device_id
+        if theano_flags:
+            # Preserve given flags
+            os.environ['THEANO_FLAGS'] = "%s,device=%s" % (theano_flags, train_args.device_id)
+        else:
+            os.environ['THEANO_FLAGS'] = "device=%s" % train_args.device_id
 
-    log.info("THEANO_FLAGS = %s" % os.environ['THEANO_FLAGS'])
-
-    # Import theano
+    #########################
+    # Import theano and numpy
+    #########################
     import theano
     import numpy as np
-    log.info("Using device: %s (on machine %s)" % (train_args.device_id, platform.node()))
-    log.info("Theano version: %s" % theano.version.full_version)
+
+    ###############################################
+    # Get default lrate from optimizer if not given
+    ###############################################
+    if model_args.lrate is None:
+        from nmtpy.optimizers import get_optimizer
+        model_args.lrate = inspect.signature(get_optimizer(model_args.optimizer)).parameters['lr0'].default
 
     # Set numpy random seed before everything else
     if train_args.seed != 0:
         np.random.seed(train_args.seed)
+
+    # Create a folder named as conf file
+    folder_name = os.path.splitext(os.path.basename(cargs['config']))[0]
+    model_args.save_path = os.path.join(model_args.save_path, folder_name)
+    ensure_dirs([model_args.save_path])
+
+    # Create a unique experience identifier string
+    exp_id = get_exp_identifier(train_args, model_args, suffix=cargs['suffix'])
+    # Get unique run identifier (starts from 1)
+    run_id = get_next_runid(model_args.save_path, exp_id)
+    # Get log file name
+    log_fname = None
+    if not cargs['no_log']:
+        log_fname = os.path.join(model_args.save_path,
+                                "%s.%d.log" % (exp_id, run_id))
+
+    #####################################################
+    # Start logging module (both to terminal and to file)
+    #####################################################
+    Logger.setup(log_file=log_fname, timestamp=cargs['timestamp'])
+    log = Logger.get()
+    cleanup.register_handler(log)
+
+    # Dump preliminary information
+    log.info("THEANO_FLAGS = %s" % os.environ['THEANO_FLAGS'])
+    log.info("Using device %s (on machine %s)" % (train_args.device_id, platform.node()))
+    log.info("Theano version: %s" % theano.version.full_version)
+
+    # Update save_path
+    model_args.save_path = os.path.join(model_args.save_path, "%s.%d" % (exp_id, run_id))
+
+    # ensure valid hyps folder if valid_save_hyp is activated
+    if train_args.valid_save_hyp is True:
+        ensure_dirs([model_args.save_path+'.valid_hyps'])
 
     # Print options
     print_summary(train_args, model_args, print_func=log.info)
@@ -183,13 +188,16 @@ if __name__ == '__main__':
     # List of weights that will not receive updates during BP
     dont_update = []
 
+    # Previous optimizer history
+    opt_history = None
+
     # Override some weights with pre-trained ones if given
     if train_args.init:
         log.info('Will override parameters from pre-trained weights')
         log.info('  %s' % os.path.basename(train_args.init))
         new_params = get_param_dict(train_args.init)
         model.update_shared_variables(new_params)
-        if freeze:
+        if cargs['freeze']:
             log.info('Pretrained weights will not be updated.')
             dont_update = list(new_params.keys())
 
@@ -207,7 +215,7 @@ if __name__ == '__main__':
     log.info("Building model")
     data_loss = model.build()
 
-    log.info("Input tensor order: ")
+    log.info("Input tensor order:")
     log.info(list(model.inputs.values()))
 
     # Compute regularized loss
@@ -215,22 +223,20 @@ if __name__ == '__main__':
     if train_args.decay_c > 0:
         reg_loss.append(model.get_l2_weight_decay(train_args.decay_c))
 
+    # Sum all regularization losses
     reg_loss = sum(reg_loss) if len(reg_loss) > 0 else None
 
     # Build optimizer
-    log.info('Building optimizer %s (initial lr=%.5f)' % (model_args.optimizer, model_args.lrate))
-    model.build_optimizer(data_loss, reg_loss, train_args.clip_c, dont_update=dont_update, debug=verbose)
-
-    # Save graph
-    if verbose:
-        theano.printing.debugprint(model.train_batch, file=open('%s.graph' % log_file.replace(".log", ""), 'w'))
+    log.info('Building optimizer %s (lrate=%.5f)' % (model_args.optimizer, model_args.lrate))
+    model.build_optimizer(data_loss, reg_loss, train_args.clip_c,
+                          dont_update=dont_update, opt_history=opt_history)
 
     # Reseed to retain the order of shuffle operations
     np.random.seed(train_args.seed)
 
     # Create mainloop
     loop = MainLoop(model, log, train_args)
-    
+
     # Start training, log dates
     log.info('Trainin started on %s' % time.strftime('%d-%m-%Y %H:%M'))
     loop.run()

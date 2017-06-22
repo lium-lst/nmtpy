@@ -1,13 +1,11 @@
 # -*- coding: utf-8 -*-
 from collections import OrderedDict
 
-# 3rd party
 import numpy as np
 
 import theano
 import theano.tensor as tensor
 
-# Ours
 from ..layers import dropout, tanh, get_new_layer
 from ..defaults import INT, FLOAT
 from ..nmtutils import norm_weight, invert_dictionary, load_dictionary
@@ -20,21 +18,31 @@ class Model(BaseModel):
         # Call parent's init first
         super(Model, self).__init__(**kwargs)
 
+        ######################################################
+        # All the kwargs arguments come from the configuration
+        # file or as extra arguments given to nmt-train.
+        ######################################################
+
         # Use GRU by default as encoder
+        # NOTE: not tested at all with LSTM
         self.enc_type = kwargs.get('enc_type', 'gru')
 
-        # Do we apply layer normalization to GRU?
+        # Do we apply layer normalization to GRU encoder?
+        # NOTE: layernorm in CGRU seems to degrade the performance
+        # so its explicitly disabled.
         self.lnorm = kwargs.get('layer_norm', False)
 
-        # Shuffle mode (default: No shuffle)
-        self.smode = kwargs.get('shuffle_mode', 'simple')
+        # Shuffle mode (default: trglen (ordered by target len))
+        self.smode = kwargs.get('shuffle_mode', 'trglen')
 
-        # How to initialize CGRU
+        # How to initialize CGRU: text (default), zero (initialize with zero)
         self.init_cgru = kwargs.get('init_cgru', 'text')
 
+        # If enabled, just use the decoder's hidden state for conditioning
+        # the target probability instead of dl4mt style 3-way fusion.
+        self.simple_output = kwargs.get('simple_output', False)
+
         # Get dropout parameters
-        # Let's keep the defaults as 0 to not use dropout
-        # You can adjust those from your conf files.
         self.emb_dropout = kwargs.get('emb_dropout', 0.)
         self.ctx_dropout = kwargs.get('ctx_dropout', 0.)
         self.out_dropout = kwargs.get('out_dropout', 0.)
@@ -42,10 +50,27 @@ class Model(BaseModel):
         # Number of additional GRU encoders for source sentences
         self.n_enc_layers  = kwargs.get('n_enc_layers' , 1)
 
-        # Use a single embedding matrix for target words?
-        self.tied_trg_emb = kwargs.get('tied_trg_emb', False)
+        # Shared embedding schemes
+        # False: disabled
+        # 2way:  Share output embeddings and input embeddings for target
+        #        eliminating ff_logit before softmax.
+        # 3way:  Share all embeddings in the network including source.
+        #        - Prepare single vocab pkl with nmt-build-dict -s option.
+        #        - Give the same pkl to both src and trg in model config.
+        self.tied_emb = kwargs.get('tied_emb', False)
 
+        # Let's call source and target embedding layers Wemb_enc and Wemb_dec
+        # by default.
+        self.src_emb_name = 'Wemb_enc'
+        self.trg_emb_name = 'Wemb_dec'
+
+        ###################
         # Load dictionaries
+        ###################
+        # Get the filenames for vocab pkl's
+        src_dict_file = kwargs['dicts']['src']
+        trg_dict_file = kwargs['dicts']['trg']
+
         if 'src_dict' in kwargs:
             # Already passed through kwargs (nmt-translate)
             self.src_dict = kwargs['src_dict']
@@ -53,7 +78,7 @@ class Model(BaseModel):
             src_idict = invert_dictionary(self.src_dict)
         else:
             # Load them from pkl files
-            self.src_dict, src_idict = load_dictionary(kwargs['dicts']['src'])
+            self.src_dict, src_idict = load_dictionary(src_dict_file)
 
         if 'trg_dict' in kwargs:
             # Already passed through kwargs (nmt-translate)
@@ -62,24 +87,41 @@ class Model(BaseModel):
             trg_idict = invert_dictionary(self.trg_dict)
         else:
             # Load them from pkl files
-            self.trg_dict, trg_idict = load_dictionary(kwargs['dicts']['trg'])
+            self.trg_dict, trg_idict = load_dictionary(trg_dict_file)
 
-        # Limit shortlist sizes
+        ####################################################
+        # Limit shortlist sizes to replace
+        # out-of-shortlist tokens with <unk> in the iterator
+        ####################################################
         self.n_words_src = min(self.n_words_src, len(self.src_dict)) \
                 if self.n_words_src > 0 else len(self.src_dict)
         self.n_words_trg = min(self.n_words_trg, len(self.trg_dict)) \
                 if self.n_words_trg > 0 else len(self.trg_dict)
 
-        # Create options. This will saved as .pkl
+        # Sanity check for 3-way tying
+        if self.tied_emb == '3way':
+            # Check that given vocab files are the same
+            assert src_dict_file == trg_dict_file, \
+                    "Vocabulary files should be the same for 3-way tying."
+
+            assert self.n_words_src == self.n_words_trg, \
+                    "Shortlist sizes should be the same for 3-way tying."
+
+            # Use a single name for all embeddings
+            self.src_emb_name = self.trg_emb_name = 'Wemb'
+
+        # Set options: the variables until here will be saved
+        # to model checkpoints and snapshots as 'opts' dict.
         self.set_options(self.__dict__)
 
+        # No need to store inverted dictionaries so assign them here.
         self.trg_idict = trg_idict
         self.src_idict = src_idict
 
         # Context dimensionality is 2 times RNN since we use Bi-RNN
         self.ctx_dim = 2 * self.rnn_dim
 
-        # Set the seed of Theano RNG
+        # Set the seed of Theano RNG for dropout
         self.set_trng(seed)
 
         # We call this once to setup dropout mechanism correctly
@@ -104,10 +146,10 @@ class Model(BaseModel):
         # Ensembling-aware lists
         next_states     = [None] * n_models
         text_ctxs       = [None] * n_models
-        aux_ctxs        = [[]] * n_models
         tiled_ctxs      = [None] * n_models
         next_log_ps     = [None] * n_models
         alphas          = [None] * n_models
+        aux_ctxs        = [[] for i in range(n_models)]
 
         for i, f_init in enumerate(f_inits):
             # Get next_state and initial contexts and save them
@@ -219,14 +261,20 @@ class Model(BaseModel):
         return final_sample, final_score, final_alignments
 
     def info(self):
+        """Prints some information about the model."""
+
         self.logger.info('Source vocabulary size: %d', self.n_words_src)
         self.logger.info('Target vocabulary size: %d', self.n_words_trg)
         self.logger.info('%d training samples' % self.train_iterator.n_samples)
+        self.logger.info('  %d src UNKs, %d trg UNKs' % (self.train_iterator.n_unks_src, self.train_iterator.n_unks_trg))
         if 'valid_src' in self.data:
             self.logger.info('%d validation samples' % self.valid_iterator.n_samples)
+            self.logger.info('  %d src UNKs, %d trg UNKs' % (self.valid_iterator.n_unks_src, self.valid_iterator.n_unks_trg))
         self.logger.info('dropout (emb,ctx,out): %.2f, %.2f, %.2f' % (self.emb_dropout, self.ctx_dropout, self.out_dropout))
 
     def load_valid_data(self, from_translate=False):
+        """Loads validation data."""
+
         self.valid_ref_files = self.data['valid_trg']
         if isinstance(self.valid_ref_files, str):
             self.valid_ref_files = list([self.valid_ref_files])
@@ -248,6 +296,8 @@ class Model(BaseModel):
         self.valid_iterator.read()
 
     def load_data(self):
+        """Loads training data and validation data if any."""
+
         self.train_iterator = BiTextIterator(
                                 batch_size=self.batch_size,
                                 shuffle_mode=self.smode,
@@ -267,11 +317,14 @@ class Model(BaseModel):
     # from this basic Attention model.
     ###################################################################
     def init_params(self):
+        """Initializes model weights/layers randomly and store them."""
+
         params = OrderedDict()
 
         # embedding weights for encoder and decoder
-        params['Wemb_enc'] = norm_weight(self.n_words_src, self.embedding_dim, scale=self.weight_init)
-        params['Wemb_dec'] = norm_weight(self.n_words_trg, self.embedding_dim, scale=self.weight_init)
+        params[self.src_emb_name] = norm_weight(self.n_words_src, self.embedding_dim, scale=self.weight_init)
+        if self.tied_emb != '3way':
+            params[self.trg_emb_name] = norm_weight(self.n_words_trg, self.embedding_dim, scale=self.weight_init)
 
         ############################
         # encoder: bidirectional RNN
@@ -303,14 +356,17 @@ class Model(BaseModel):
         # fusion
         ########
         params = get_new_layer('ff')[0](params, prefix='ff_logit_gru'  , nin=self.rnn_dim       , nout=self.embedding_dim, scale=self.weight_init, ortho=False)
-        params = get_new_layer('ff')[0](params, prefix='ff_logit_prev' , nin=self.embedding_dim , nout=self.embedding_dim, scale=self.weight_init, ortho=False)
-        params = get_new_layer('ff')[0](params, prefix='ff_logit_ctx'  , nin=self.ctx_dim       , nout=self.embedding_dim, scale=self.weight_init, ortho=False)
-        if self.tied_trg_emb is False:
+        if not self.simple_output:
+            params = get_new_layer('ff')[0](params, prefix='ff_logit_prev' , nin=self.embedding_dim , nout=self.embedding_dim, scale=self.weight_init, ortho=False)
+            params = get_new_layer('ff')[0](params, prefix='ff_logit_ctx'  , nin=self.ctx_dim       , nout=self.embedding_dim, scale=self.weight_init, ortho=False)
+        if self.tied_emb is False:
             params = get_new_layer('ff')[0](params, prefix='ff_logit'  , nin=self.embedding_dim , nout=self.n_words_trg, scale=self.weight_init)
 
         self.initial_params = params
 
     def build(self):
+        """Builds the computation graph for training."""
+
         # description string: #words x #samples
         x = tensor.matrix('x', dtype=INT)
         x_mask = tensor.matrix('x_mask', dtype=FLOAT)
@@ -332,13 +388,13 @@ class Model(BaseModel):
         n_samples = x.shape[1]
 
         # word embedding for forward rnn (source)
-        emb = dropout(self.tparams['Wemb_enc'][x.flatten()],
+        emb = dropout(self.tparams[self.src_emb_name][x.flatten()],
                       self.trng, self.emb_dropout, self.use_dropout)
         emb = emb.reshape([n_timesteps, n_samples, self.embedding_dim])
         proj = get_new_layer(self.enc_type)[1](self.tparams, emb, prefix='encoder', mask=x_mask, layernorm=self.lnorm)
 
         # word embedding for backward rnn (source)
-        embr = dropout(self.tparams['Wemb_enc'][xr.flatten()],
+        embr = dropout(self.tparams[self.src_emb_name][xr.flatten()],
                        self.trng, self.emb_dropout, self.use_dropout)
         embr = embr.reshape([n_timesteps, n_samples, self.embedding_dim])
         projr = get_new_layer(self.enc_type)[1](self.tparams, embr, prefix='encoder_r', mask=xr_mask, layernorm=self.lnorm)
@@ -366,39 +422,37 @@ class Model(BaseModel):
         # to the right. This is done because of the bi-gram connections in the
         # readout and decoder rnn. The first target will be all zeros and we will
         # not condition on the last output.
-        emb = self.tparams['Wemb_dec'][y.flatten()]
+        emb = self.tparams[self.trg_emb_name][y.flatten()]
         emb = emb.reshape([n_timesteps_trg, n_samples, self.embedding_dim])
         emb_shifted = tensor.zeros_like(emb)
         emb_shifted = tensor.set_subtensor(emb_shifted[1:], emb[:-1])
         emb = emb_shifted
 
         # decoder - pass through the decoder conditional gru with attention
-        proj = get_new_layer('gru_cond')[1](self.tparams, emb,
-                                            prefix='decoder',
-                                            mask=y_mask, context=ctx,
-                                            context_mask=x_mask,
-                                            one_step=False,
-                                            init_state=init_state, layernorm=False)
+        r = get_new_layer('gru_cond')[1](self.tparams, emb,
+                                         prefix='decoder',
+                                         mask=y_mask, context=ctx,
+                                         context_mask=x_mask,
+                                         one_step=False,
+                                         init_state=init_state, layernorm=False)
         # hidden states of the decoder gru
-        proj_h = proj[0]
-
         # weighted averages of context, generated by attention module
-        ctxs = proj[1]
-
         # weights (alignment matrix)
-        self.alphas = proj[2]
+        next_state, ctxs, alphas = r
 
         # compute word probabilities
-        logit_gru  = get_new_layer('ff')[1](self.tparams, proj_h, prefix='ff_logit_gru', activ='linear')
-        logit_ctx  = get_new_layer('ff')[1](self.tparams, ctxs, prefix='ff_logit_ctx', activ='linear')
-        logit_prev = get_new_layer('ff')[1](self.tparams, emb, prefix='ff_logit_prev', activ='linear')
+        logit = get_new_layer('ff')[1](self.tparams, next_state, prefix='ff_logit_gru', activ='linear')
 
-        logit = dropout(tanh(logit_gru + logit_prev + logit_ctx), self.trng, self.out_dropout, self.use_dropout)
+        if not self.simple_output:
+            logit += get_new_layer('ff')[1](self.tparams, ctxs, prefix='ff_logit_ctx', activ='linear')
+            logit += get_new_layer('ff')[1](self.tparams, emb, prefix='ff_logit_prev', activ='linear')
 
-        if self.tied_trg_emb is False:
+        logit = dropout(tanh(logit), self.trng, self.out_dropout, self.use_dropout)
+
+        if self.tied_emb is False:
             logit = get_new_layer('ff')[1](self.tparams, logit, prefix='ff_logit', activ='linear')
         else:
-            logit = tensor.dot(logit, self.tparams['Wemb_dec'].T)
+            logit = tensor.dot(logit, self.tparams[self.trg_emb_name].T)
 
         logit_shp = logit.shape
 
@@ -415,21 +469,21 @@ class Model(BaseModel):
 
         self.f_log_probs = theano.function(list(self.inputs.values()), cost)
 
-        # For alpha regularization
-
         return cost
 
     def build_sampler(self):
+        """Builds the computation graph for beam search."""
+
         x           = tensor.matrix('x', dtype=INT)
         xr          = x[::-1]
         n_timesteps = x.shape[0]
         n_samples   = x.shape[1]
 
         # word embedding (source), forward and backward
-        emb = self.tparams['Wemb_enc'][x.flatten()]
+        emb = self.tparams[self.src_emb_name][x.flatten()]
         emb = emb.reshape([n_timesteps, n_samples, self.embedding_dim])
 
-        embr = self.tparams['Wemb_enc'][xr.flatten()]
+        embr = self.tparams[self.src_emb_name][xr.flatten()]
         embr = embr.reshape([n_timesteps, n_samples, self.embedding_dim])
 
         # encoder
@@ -463,8 +517,8 @@ class Model(BaseModel):
 
         # if it's the first word, emb should be all zero and it is indicated by -1
         emb = tensor.switch(y[:, None] < 0,
-                            tensor.alloc(0., 1, self.tparams['Wemb_dec'].shape[1]),
-                            self.tparams['Wemb_dec'][y])
+                            tensor.alloc(0., 1, self.tparams[self.trg_emb_name].shape[1]),
+                            self.tparams[self.trg_emb_name][y])
 
         # apply one step of conditional gru with attention
         # get the next hidden states
@@ -475,29 +529,23 @@ class Model(BaseModel):
                                          one_step=True,
                                          init_state=init_state, layernorm=False)
 
-        next_state = r[0]
-        ctxs = r[1]
-        alphas = r[2]
+        next_state, ctxs, alphas = r
 
-        logit_prev = get_new_layer('ff')[1](self.tparams, emb,          prefix='ff_logit_prev',activ='linear')
-        logit_ctx  = get_new_layer('ff')[1](self.tparams, ctxs,         prefix='ff_logit_ctx', activ='linear')
-        logit_gru  = get_new_layer('ff')[1](self.tparams, next_state,   prefix='ff_logit_gru', activ='linear')
+        logit = get_new_layer('ff')[1](self.tparams, next_state, prefix='ff_logit_gru', activ='linear')
 
-        logit = tanh(logit_gru + logit_prev + logit_ctx)
+        if not self.simple_output:
+            logit += get_new_layer('ff')[1](self.tparams, emb, prefix='ff_logit_prev',activ='linear')
+            logit += get_new_layer('ff')[1](self.tparams, ctxs, prefix='ff_logit_ctx', activ='linear')
 
-        if self.tied_trg_emb is False:
+        logit = tanh(logit)
+
+        if self.tied_emb is False:
             logit = get_new_layer('ff')[1](self.tparams, logit, prefix='ff_logit', activ='linear')
         else:
-            logit = tensor.dot(logit, self.tparams['Wemb_dec'].T)
+            logit = tensor.dot(logit, self.tparams[self.trg_emb_name].T)
 
         # compute the logsoftmax
         next_log_probs = tensor.nnet.logsoftmax(logit)
-
-        # Sample from the softmax distribution
-        # NOTE: We never use sampling and it incurs performance penalty
-        # let's disable it for now
-        #next_probs = tensor.exp(next_log_probs)
-        #next_word = self.trng.multinomial(pvals=next_probs).argmax(1)
 
         # compile a function to do the whole thing above
         # next hidden state to be used
