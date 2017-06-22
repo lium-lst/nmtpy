@@ -82,12 +82,14 @@ Folder `ted-factors` contains examples of how to use this system.
 
 If you use fnmt system in your work, please cite the following:
 
+````
 @inproceedings{garcia-martinez2016fnmt,
   title={Factored Neural Machine Translation Architectures},
     author={Garc{\'\i}a-Mart{\'\i}nez, Mercedes and Barrault, Lo{\"\i}c and Bougares, Fethi},
       booktitle={arXiv preprint arXiv:1605.09186},
         year={2016}
 }
+```
 
 More info: http://workshop2016.iwslt.org/downloads/IWSLT_2016_paper_2.pdf
 
