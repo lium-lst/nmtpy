@@ -19,7 +19,7 @@ class Factors2word(object):
         
         out = subprocess.run(cmdline, stdout=subprocess.PIPE,
                                input=hypstring, universal_newlines=True).stdout.splitlines()
-
+        # TODO: this -1 gives many problems, in future we will return just BLEU and avoid those problems
         score = out[-1].splitlines()
         if len(score) == 0:
             return BLEUScore()

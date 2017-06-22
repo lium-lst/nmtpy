@@ -15,7 +15,7 @@ import importlib
 import traceback
 from multiprocessing import Process, Queue, cpu_count
 
-from collections import OrderedDict
+from collections import OrderedDict, defaultdict
 
 import numpy as np
 
@@ -41,7 +41,7 @@ os.environ["MKL_NUM_THREADS"] = "1"
 # Force CPU
 os.environ["THEANO_FLAGS"] = "device=cpu,optimizer_including=local_remove_all_assert"
 
-def translate_model(rqueue, wqueue, pid, f_inits, f_nexts, beam_search, beam_size, nbest, suppress_unks, get_att_alphas=False, seed=1234):
+def translate_model(rqueue, wqueue, pid, f_inits, f_nexts, beam_search, beam_size, nbest, suppress_unks, get_att_alphas=False, seed=1234, fact_constraints=[]):
     """Generates translations with beam search for single and ensemble models."""
     try:
         while True:
@@ -52,27 +52,25 @@ def translate_model(rqueue, wqueue, pid, f_inits, f_nexts, beam_search, beam_siz
             sample_idx, data_dict = req[0], req[1]
 
             # Get the translation, its score and alignments
-            # trans_fact will be empty or not depending on model
-            trans, score, align, *trans_fact = beam_search(list(data_dict.values()), f_inits, f_nexts,
+            trans, score, align, trans_fact = beam_search(list(data_dict.values()), f_inits, f_nexts,
                         beam_size=beam_size,
                         get_att_alphas=get_att_alphas,
-                        suppress_unks=suppress_unks)
+                        suppress_unks=suppress_unks,
+                        fact_constraints=fact_constraints)
 
             # normalize scores according to sequence lengths
             score = score / np.array([len(s) for s in trans])
 
             # Sort the scores and take the best(s) idx(s)
             best_idxs = np.argsort(score)[:nbest]
-
-            if trans_fact:
-                # 2nd output
-                trans_fact = np.array(trans_fact)[best_idxs]
+            trans = np.array(trans)[best_idxs]
+            trans_fact = np.array(trans_fact)[best_idxs]
 
             # Check for attention weights
             if align is not None:
                 align = np.array(align)[best_idxs]
 
-            # Send response back, trans_fact can be empty
+            # Send response back
             wqueue.put((sample_idx, trans, score[best_idxs], align, trans_fact))
     except Exception as e:
         traceback.print_exc()
@@ -88,6 +86,7 @@ class Translator(object):
         self.src_files = args.src_files
         self.ref_files = args.ref_files
         self.factors = args.factors
+        self.constrained = args.constrained
 
         # Collect processed source sentences in here
         # for further exporting to json
@@ -115,22 +114,21 @@ class Translator(object):
     def set_model_options(self):
         for mfile in self.model_files:
             log.info('Initializing model %s' % os.path.basename(mfile))
-            # Load model file
-            data = np.load(mfile)
 
             # Fetch options
-            model_options = get_model_options(data['opts'])
+            model_options = dict(np.load(mfile)['opts'].tolist())
 
             # Import the module
             self.__class = importlib.import_module("nmtpy.models.%s" % model_options['model_type']).Model
 
             # Create the model
             model = self.__class(seed=self.seed, logger=None, **model_options)
-
+            
             # Load weights from the already loaded file
-            model.load(data['tparams'].tolist())
+            model.load(mfile)
 
             model.set_dropout(False)
+
             model.build_sampler()
 
             self.models.append(model)
@@ -140,6 +138,9 @@ class Translator(object):
         if self.n_models > 1:
             assert len(set([len(mopts['trg_dict']) for mopts in self.model_options])) == 1, \
                     "Target vocabularies should be the same for ensembling."
+            assert len(set([len(mopts['trgfact_dict']) for mopts in self.model_options])) == 1, \
+                    "Target factors vocabularies should be the same for ensembling."
+
 
         # Check for post-processing filter
         # NOTE: Filters should be the same for each model during ensembling
@@ -151,14 +152,36 @@ class Translator(object):
         # Get inverted dictionary from the model itself
         # NOTE: Target dictionary should be the same for each model during ensembling
         self.trg_idict = self.models[0].trg_idict
-        if args.factors:
-            self.trgfact_idict = self.models[0].trgfact_idict
+        self.trgfact_idict = self.models[0].trgfact_idict
+            
+        # Set contrained decoding
+        # Load constraints on factor predictions (Franck).
+        # The loaded file contains on each line elements
+        # separated by space. The 1st element is the lemma,
+        # all others are allowed factors for the lemma. Ex.:
+        # dog noun+singular noun+plural
+        self.fact_constraints = defaultdict(lambda: np.array(range(len(self.trgfact_idict))))
+        if self.constrained:
+            try:
+                # dictionary with lemma and factors, each line lemma factor1 factor2 factor3
+                const_file = open(self.constrained)
+                print("Constrained search", const_file)
+            except FileNotFoundError:
+                print("File with factor constraints not found: unconstrained search")
+                const_file = []
+            for line in const_file:
+                line = line.split()
+                try:
+                    lem = self.models[0].trg_dict[line[0]]
+                except KeyError:
+                    continue
+                facts = [self.models[0].trgfact_dict.get(f, self.models[0].trgfact_dict['<unk>']) for f in line[1:]]
+                self.fact_constraints[lem] = np.array(facts)
 
         #########################
         # Normal translation mode
         #########################
-        else:
-            if self.src_files is not None:
+        if self.src_files is not None:
                 # Pass the files to the model
                 # NOTE: Not quite model agnostic way of doing things.
                 self.models[0].data['valid_src'] = self.src_files[0]
@@ -173,17 +196,18 @@ class Translator(object):
                     self.models[0].data['valid_trg1'] = self.ref_files[1]
                     self.models[0].data['valid_trg2'] = self.ref_files[2]
 
-            # Initialize model's validation data iterator
-            self.models[0].load_valid_data(from_translate=True)
 
-            # Set self.iterator to self.models[0].valid_iterator
-            self.iterator = self.models[0].valid_iterator
+        # Initialize model's validation data iterator
+        self.models[0].load_valid_data(from_translate=True)
 
-            # All sentences
-            self.n_sentences = self.iterator.n_samples
+        # Set self.iterator to self.models[0].valid_iterator
+        self.iterator = self.models[0].valid_iterator
 
-            # Assume validation data encoded in the model
-            if self.src_files is None:
+        # All sentences
+        self.n_sentences = self.iterator.n_samples
+
+        # Assume validation data encoded in the model
+        if self.src_files is None:
                 log.info("No test data given, assuming validation dataset.")
 
                 self.src_files = listify(self.models[0].data['valid_src'])
@@ -203,7 +227,7 @@ class Translator(object):
                     self.ref_files.append(listify(self.models[0].data['valid_trg1']))
                     self.ref_files.append(listify(self.models[0].data['valid_trg2']))
 
-            log.info('I will translate %d samples' % self.n_sentences)
+        log.info('I will translate %d samples' % self.n_sentences)
 
         ###################
         # Print information
@@ -232,7 +256,8 @@ class Translator(object):
             self.processes[idx] = Process(target=translate_model,
                                           args=(write_queue, read_queue, idx, f_inits, f_nexts, beam_search, self.beam_size,
                                           self.nbest, self.suppress_unks, self.export,
-                                          self.seed))
+                                          self.seed,
+                                          self.fact_constraints))
             # Start process and register for cleanup
             self.processes[idx].start()
             cleanup.register_proc(self.processes[idx].pid)
@@ -280,8 +305,7 @@ class Translator(object):
             # FIXME: Improve
             # Place the hypotheses into their relevant places
             self.trans[sample_idx] = [idx_to_sent(self.trg_idict, hyp) for hyp in hyps]
-            if trans_fact:
-                self.trans_fact[sample_idx] = [idx_to_sent(self.trgfact_idict, hyp) for hyp in trans_fact]
+            self.trans_fact[sample_idx] = [idx_to_sent(self.trgfact_idict, hyp) for hyp in trans_fact]
 
             # Print progress
             if (i+1) % 100 == 0:
@@ -339,17 +363,8 @@ class Translator(object):
                 hyps = "\n".join(self.hyps) + "\n"
                 f.write(hyps)
 
-    def compute_metrics(self, hyp_file, scorers):
-        """Computes evaluation metrics for the hypotheses."""
-        results = {}
-        for scorer in scorers:
-            c = get_scorer(scorer)
-            score = c.compute(self.ref_files, hyp_file)
-            results[score.name] = (str(score), score.score)
-        self.results = results
-        return results
-
     def compute_fact_score(self, hyp_files, scorers):
+        """Computes evaluation metrics for the hypotheses."""
         results = {}
         for scorer in scorers:
             c = get_scorer(scorer)
@@ -444,7 +459,9 @@ if __name__ == "__main__":
     parser.add_argument('-R', '--ref-files'     , type=str, nargs='+',
                                                               default=None, help="One or multiple reference files (default: validation set)")
     parser.add_argument('-m', '--models'        , nargs='+', required=True, help="Model files")
-    parser.add_argument('-fa', '--factors'      , type=str, default=None, help="Activate factors. The value can be evalf to evaluate just with the first output or the script to combine the 2 outputs (default: None)")
+    # default factors is evalf meanwhile this nmt-translate-factors remains in a different file than nmt-translate
+    parser.add_argument('-f', '--factors'       , type=str, default='evalf',help="Activate factors. The value can be evalf to evaluate just with the first output or the script to combine the 2 outputs (default=evalf)")
+    parser.add_argument('-c', '--constrained'   , type=str, default=None,   help="Do constrained decoding providing a dictionary with lemma and factors, each line lemma factor1 factor2 factor3.")
 
     args = parser.parse_args()
 
@@ -467,26 +484,26 @@ if __name__ == "__main__":
         args.score = False
         hypf = get_temp_file(suffix=".nbest_hyps")
         out_file = [hypf.name]
+        hypf2 = get_temp_file(suffix=".nbest_hyps2")
+        out_file.append(hypf2.name)
         hypf.close()
+        hypf2.close()
 
     # Export attentional informations if -o and -e are given
     if args.export and args.saveto:
-        translator.dump_json("%s.json" % out_file)
+        translator.dump_json("%s.json" % out_file[0])
 
     # Dump hypotheses
     # pass output file, number of output and scores
     translator.write_hyps(out_file[0], 1, args.score)
-    if args.factors:
-        translator.write_hyps(out_file[1], 2, args.score)
+    translator.write_hyps(out_file[1], 2, args.score)
 
     # No need to compute metrics with nbest style files
     if args.nbest == 1 and translator.ref_files and not args.score:
         # Compute all metrics
-        if args.factors:
-            # Factors evaluation combining the 2 outputs
-            results = translator.compute_fact_score(out_file, args.metrics)
-        else:
-            results = translator.compute_metrics(out_file[0], args.metrics)
+        # Factors evaluation combining the 2 outputs
+        results = translator.compute_fact_score(out_file, args.metrics)
+
         # NOTE: This dict is expected from nmt-translate for obtaining the validation results.
         print(results)
 
