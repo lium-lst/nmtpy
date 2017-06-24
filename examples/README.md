@@ -88,7 +88,7 @@ If you use fnmt system in your work, please cite the following:
   author={Garc{\'\i}a-Mart{\'\i}nez, Mercedes and Barrault, Lo{\"\i}c and Bougares, Fethi},
   booktitle={Proceedings of the International Workshop on Spoken Language Translation (IWSLT)},
   year={2016},
-  url='http://workshop2016.iwslt.org/downloads/IWSLT_2016_paper_2.pdf'
+  url={'http://workshop2016.iwslt.org/downloads/IWSLT_2016_paper_2.pdf'}
 }
 ```
 
