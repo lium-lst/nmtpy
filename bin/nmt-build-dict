@@ -59,7 +59,7 @@ def get_freqs(fname, cumul_dict=None):
 
                 idx += 1
 
-    print()
+    print('\r%d sentences processed' % (idx))
     # Remove already available <eos> and <unk> if any
     if '<eos>' in token_freqs:
         del token_freqs['<eos>']
