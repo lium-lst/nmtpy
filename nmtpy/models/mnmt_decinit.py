@@ -8,13 +8,12 @@ import theano.tensor as T
 from ..layers import dropout, tanh, get_new_layer
 from ..defaults import INT, FLOAT
 from ..nmtutils import norm_weight
-from ..iterators.wmt17 import WMTIterator
+from ..iterators.mnmt import MNMTIterator
 
 from .attention import Model as Attention
 
 ############################################################
 # Attentive NMT + Decoder initialized with FC image features
-# Need to use wmt17.WMTIterator
 ############################################################
 
 class Model(Attention):
@@ -24,7 +23,7 @@ class Model(Attention):
 
     def load_data(self):
         # Load training data
-        self.train_iterator = WMTIterator(
+        self.train_iterator = MNMTIterator(
                 batch_size=self.batch_size,
                 logger=self.logger,
                 pklfile=self.data['train_src'],
@@ -43,7 +42,7 @@ class Model(Attention):
             if isinstance(self.valid_ref_files, str):
                 self.valid_ref_files = list([self.valid_ref_files])
 
-            self.valid_iterator = WMTIterator(
+            self.valid_iterator = MNMTIterator(
                     batch_size=batch_size,
                     mask=False,
                     pklfile=self.data['valid_src'],
@@ -51,7 +50,7 @@ class Model(Attention):
                     srcdict=self.src_dict, n_words_src=self.n_words_src)
         else:
             # Just for loss computation
-            self.valid_iterator = WMTIterator(
+            self.valid_iterator = MNMTIterator(
                     batch_size=self.batch_size,
                     pklfile=self.data['valid_src'],
                     imgfile=self.data['valid_img'],
