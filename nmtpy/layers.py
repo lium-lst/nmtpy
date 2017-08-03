@@ -172,11 +172,15 @@ def param_init_fflayer(params, nin, nout, scale=0.01, ortho=True, prefix='ff'):
 
     return params
 
-def fflayer(tparams, state_below, prefix='ff', activ='tanh'):
-    return eval(activ) (
-        tensor.dot(state_below, tparams[pp(prefix, 'W')]) +
-        tparams[pp(prefix, 'b')]
-        )
+def fflayer(tparams, state_below, prefix='ff', activ='tanh', col_idxs=None):
+    W = tparams[pp(prefix, 'W')]
+    b = tparams[pp(prefix, 'b')]
+    if col_idxs is not None:
+        # Select specific columns. Useful for reduced vocabulary.
+        W = W[:, col_idxs]
+        b = b[col_idxs]
+
+    return eval(activ) (tensor.dot(state_below, W) + b)
 
 ##################################
 # Highway layer
