@@ -447,6 +447,6 @@ class Model(BaseModel):
 
         pass
 
-    def build_sampler(self):
+    def build_sampler(self, **kwargs):
 
         pass

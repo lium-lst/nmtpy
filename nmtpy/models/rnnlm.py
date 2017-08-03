@@ -155,7 +155,7 @@ class Model(BaseModel):
              probs.extend(log_probs)
              return np.array(probs), norm
 
-    def build_sampler(self):
+    def build_sampler(self, **kwargs):
         # x: 1 x 1
         y = tensor.vector('y_sampler', dtype=INT)
         init_state = tensor.matrix('init_state', dtype=FLOAT)

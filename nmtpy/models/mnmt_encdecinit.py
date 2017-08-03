@@ -206,7 +206,7 @@ class Model(Attention):
 
         return cost
 
-    def build_sampler(self):
+    def build_sampler(self, **kwargs):
         x       = T.matrix('x', dtype=INT)
         x_img   = T.matrix('x_img', dtype=FLOAT)
         xr      = x[::-1]

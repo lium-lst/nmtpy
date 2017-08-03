@@ -286,7 +286,7 @@ class Model(Attention):
 
         return cost
 
-    def build_sampler(self):
+    def build_sampler(self, **kwargs):
         x               = tensor.matrix('x', dtype=INT)
         n_timesteps     = x.shape[0]
         n_samples       = x.shape[1]

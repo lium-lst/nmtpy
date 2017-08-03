@@ -210,7 +210,7 @@ class Model(AttentionFnmt):
 
         return cost
 
-    def build_sampler(self):
+    def build_sampler(self, **kwargs):
         x           = tensor.matrix('x', dtype=INT)
         xr          = x[::-1]
         n_timesteps = x.shape[0]
