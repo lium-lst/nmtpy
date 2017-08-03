@@ -41,9 +41,16 @@ os.environ["MKL_NUM_THREADS"] = "1"
 # Force CPU
 os.environ["THEANO_FLAGS"] = "device=cpu,optimizer_including=local_remove_all_assert"
 
-def translate_model(rqueue, wqueue, pid, f_inits, f_nexts, beam_search, beam_size, nbest, suppress_unks, get_att_alphas=False, seed=1234):
+def translate_model(rqueue, wqueue, pid, models, beam_size, nbest, suppress_unks, get_att_alphas=False, seed=1234):
     """Generates translations with beam search for single and ensemble models."""
     try:
+        # Get the method handle
+        beam_search = models[0].beam_search
+
+        # Each model have different f_init and f_next graphs
+        f_inits     = [m.f_init for m in models]
+        f_nexts     = [m.f_next for m in models]
+
         while True:
             # Get a sample
             req = rqueue.get()
@@ -196,15 +203,10 @@ class Translator(object):
         write_queue = Queue()
         read_queue  = Queue()
 
-        # Get theano functions and beam_search to pass to workers
-        f_inits = [m.f_init for m in self.models]
-        f_nexts = [m.f_next for m in self.models]
-        beam_search = self.models[0].beam_search
-
         # Create processes
         for idx in range(self.n_jobs):
             self.processes[idx] = Process(target=translate_model,
-                                          args=(write_queue, read_queue, idx, f_inits, f_nexts, beam_search, self.beam_size,
+                                          args=(write_queue, read_queue, idx, self.models, self.beam_size,
                                           self.nbest, self.suppress_unks, self.export,
                                           self.seed))
             # Start process and register for cleanup
