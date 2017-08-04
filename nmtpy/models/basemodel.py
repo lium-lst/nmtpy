@@ -232,6 +232,6 @@ class BaseModel(object, metaclass=ABCMeta):
         pass
 
     @abstractmethod
-     def build_sampler(self, **kwargs):
+    def build_sampler(self, **kwargs):
         """Build f_init() and f_next() for beam-search."""
         pass
