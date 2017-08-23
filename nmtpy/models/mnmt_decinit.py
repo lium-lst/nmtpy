@@ -63,8 +63,9 @@ class Model(Attention):
         params = OrderedDict()
 
         # embedding weights for encoder and decoder
-        params['Wemb_enc'] = norm_weight(self.n_words_src, self.embedding_dim, scale=self.weight_init)
-        params['Wemb_dec'] = norm_weight(self.n_words_trg, self.embedding_dim, scale=self.weight_init)
+        params[self.src_emb_name] = norm_weight(self.n_words_src, self.embedding_dim, scale=self.weight_init)
+        if self.tied_emb != '3way':
+            params[self.trg_emb_name] = norm_weight(self.n_words_trg, self.embedding_dim, scale=self.weight_init)
 
         ############################
         # encoder: bidirectional RNN
@@ -97,7 +98,7 @@ class Model(Attention):
         params = get_new_layer('ff')[0](params, prefix='ff_logit_gru'  , nin=self.rnn_dim       , nout=self.embedding_dim, scale=self.weight_init, ortho=False)
         params = get_new_layer('ff')[0](params, prefix='ff_logit_prev' , nin=self.embedding_dim , nout=self.embedding_dim, scale=self.weight_init, ortho=False)
         params = get_new_layer('ff')[0](params, prefix='ff_logit_ctx'  , nin=self.ctx_dim       , nout=self.embedding_dim, scale=self.weight_init, ortho=False)
-        if self.tied_trg_emb is False:
+        if self.tied_emb is False:
             params = get_new_layer('ff')[0](params, prefix='ff_logit'  , nin=self.embedding_dim , nout=self.n_words_trg, scale=self.weight_init)
 
         self.initial_params = params
@@ -124,13 +125,13 @@ class Model(Attention):
         n_timesteps_trg         = y.shape[0]
 
         # word embedding for forward rnn (source)
-        emb = dropout(self.tparams['Wemb_enc'][x.flatten()],
+        emb = dropout(self.tparams[self.src_emb_name][x.flatten()],
                       self.trng, self.emb_dropout, self.use_dropout)
         emb = emb.reshape([n_timesteps, n_samples, self.embedding_dim])
         proj = get_new_layer(self.enc_type)[1](self.tparams, emb, prefix='encoder', mask=x_mask, layernorm=self.lnorm)
 
         # word embedding for backward rnn (source)
-        embr = dropout(self.tparams['Wemb_enc'][xr.flatten()],
+        embr = dropout(self.tparams[self.src_emb_name][xr.flatten()],
                        self.trng, self.emb_dropout, self.use_dropout)
         embr = embr.reshape([n_timesteps, n_samples, self.embedding_dim])
         projr = get_new_layer(self.enc_type)[1](self.tparams, embr, prefix='encoder_r', mask=xr_mask, layernorm=self.lnorm)
@@ -153,7 +154,7 @@ class Model(Attention):
         # to the right. This is done because of the bi-gram connections in the
         # readout and decoder rnn. The first target will be all zeros and we will
         # not condition on the last output.
-        emb         = self.tparams['Wemb_dec'][y.flatten()]
+        emb         = self.tparams[self.trg_emb_name][y.flatten()]
         emb         = emb.reshape([n_timesteps_trg, n_samples, self.embedding_dim])
         emb_shifted = T.zeros_like(emb)
         emb_shifted = T.set_subtensor(emb_shifted[1:], emb[:-1])
@@ -178,10 +179,10 @@ class Model(Attention):
 
         logit = dropout(tanh(logit_gru + logit_prev + logit_ctx), self.trng, self.out_dropout, self.use_dropout)
 
-        if self.tied_trg_emb is False:
+        if self.tied_emb is False:
             logit = get_new_layer('ff')[1](self.tparams, logit, prefix='ff_logit', activ='linear')
         else:
-            logit = T.dot(logit, self.tparams['Wemb_dec'].T)
+            logit = T.dot(logit, self.tparams[self.trg_emb_name].T)
 
         logit_shp = logit.shape
 
@@ -212,10 +213,10 @@ class Model(Attention):
         n_timesteps, n_samples = x.shape
 
         # word embedding (source), forward and backward
-        emb = self.tparams['Wemb_enc'][x.flatten()]
+        emb = self.tparams[self.src_emb_name][x.flatten()]
         emb = emb.reshape([n_timesteps, n_samples, self.embedding_dim])
 
-        embr = self.tparams['Wemb_enc'][xr.flatten()]
+        embr = self.tparams[self.src_emb_name][xr.flatten()]
         embr = embr.reshape([n_timesteps, n_samples, self.embedding_dim])
 
         # encoder
@@ -244,8 +245,8 @@ class Model(Attention):
 
         # if it's the first word, emb should be all zero and it is indicated by -1
         emb = T.switch(y[:, None] < 0,
-                            T.alloc(0., 1, self.tparams['Wemb_dec'].shape[1]),
-                            self.tparams['Wemb_dec'][y])
+                            T.alloc(0., 1, self.tparams[self.trg_emb_name].shape[1]),
+                            self.tparams[self.trg_emb_name][y])
 
         # apply one step of conditional gru with attention
         # get the next hidden states
@@ -264,10 +265,10 @@ class Model(Attention):
 
         logit = tanh(logit_gru + logit_prev + logit_ctx)
 
-        if self.tied_trg_emb is False:
+        if self.tied_emb is False:
             logit = get_new_layer('ff')[1](self.tparams, logit, prefix='ff_logit', activ='linear')
         else:
-            logit = T.dot(logit, self.tparams['Wemb_dec'].T)
+            logit = T.dot(logit, self.tparams[self.trg_emb_name].T)
 
         # compute the logsoftmax
         next_log_probs = T.nnet.logsoftmax(logit)
