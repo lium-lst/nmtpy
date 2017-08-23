@@ -5,31 +5,45 @@ import os
 import sys
 import numpy as np
 
+from ast import literal_eval
+
 os.environ['THEANO_FLAGS'] = 'device=cpu'
+
+def parse_value(value):
+    try:
+        return literal_eval(value)
+    except ValueError as ve:
+        return value
 
 if __name__ == '__main__':
     # Change a property inside the 'opts' dictionary
     # of npz files and write it back.
     # Useful to port old npz files to new nmtpy versions.
 
-    modif = sys.argv.pop(-1)
+    modifs, files = [], []
 
-    # Replace key with value
-    key, value = modif.split(':')
+    for param in sys.argv[1:]:
+        if ":" in param:
+            modifs.append(param.split(':'))
+        else:
+            files.append(param)
 
-    for npzf in sys.argv[1:]:
+    for npzf in files:
+        # Load the file
         npz = np.load(npzf)
         # Get the dict
         opts = npz['opts'].tolist()
-        opts[key] = value
 
-        if key == 'model_type':
-            # If model_type changed, change the filename as well
-            oldmodel, rest = npzf.split('-', 1)
-            newfilename = '%s-%s' % (value, rest)
-        else:
-            # Override
-            newfilename = npzf
+        newfilename = npzf
+
+        for key, value in modifs:
+            opts[key] = parse_value(value)
+            print('%s -> %s' % (key, opts[key]))
+
+            if key == 'model_type':
+                # If model_type changed, change the filename as well
+                oldmodel, rest = npzf.split('-', 1)
+                newfilename = '%s-%s' % (value, rest)
 
         print('Writing %s' % newfilename)
         np.savez(newfilename, tparams=npz['tparams'], opts=opts)
