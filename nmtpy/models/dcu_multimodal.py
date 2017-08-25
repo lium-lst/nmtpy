@@ -9,7 +9,7 @@ import theano.tensor as tensor
 from ..layers import *
 from ..nmtutils import norm_weight
 from ..defaults import INT, FLOAT
-from ..iterators.wmt import WMTIterator
+from ..iterators.fusion import FusionIterator
 
 # Base fusion model
 from .attention import Model as Attention
@@ -245,7 +245,7 @@ class Model(Attention):
 
     def load_data(self):
         # Load training data
-        self.train_iterator = WMTIterator(
+        self.train_iterator = FusionIterator(
                 batch_size=self.batch_size,
                 shuffle_mode=self.smode,
                 logger=self.logger,
@@ -266,7 +266,7 @@ class Model(Attention):
             if isinstance(self.valid_ref_files, str):
                 self.valid_ref_files = list([self.valid_ref_files])
 
-            self.valid_iterator = WMTIterator(
+            self.valid_iterator = FusionIterator(
                     batch_size=batch_size,
                     mask=False,
                     pklfile=self.data['valid_src'],
@@ -275,7 +275,7 @@ class Model(Attention):
                     mode=data_mode)
         else:
             # Just for loss computation
-            self.valid_iterator = WMTIterator(
+            self.valid_iterator = FusionIterator(
                     batch_size=self.batch_size,
                     pklfile=self.data['valid_src'],
                     imgfile=self.data['valid_img'],

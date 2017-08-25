@@ -1,8 +1,12 @@
 # -*- coding: utf-8 -*-
-from ..iterators.wmt import WMTIterator
+from ..iterators.fusion import FusionIterator
 from .attention import Model as Attention
 
-# Same model as attention but using WMTIterator
+# Same model as attention but using FusionIterator
+# Purpose was to train a monomodal system using the same .pkl
+# files prepared for multimodal Task 2 system.
+#
+# FIXME: Not tested since WMT16 Task 2 experiments, probably broken
 class Model(Attention):
     def __init__(self, seed, logger, **kwargs):
         # Call parent's init first
@@ -16,7 +20,7 @@ class Model(Attention):
             if isinstance(self.valid_ref_files, str):
                 self.valid_ref_files = list([self.valid_ref_files])
 
-            self.valid_iterator = WMTIterator(
+            self.valid_iterator = FusionIterator(
                     mask=False,
                     batch_size=1,
                     pklfile=self.data['valid_src'],
@@ -24,7 +28,7 @@ class Model(Attention):
                     mode=data_mode)
         else:
             # Take the first validation item for NLL computation
-            self.valid_iterator = WMTIterator(
+            self.valid_iterator = FusionIterator(
                     batch_size=self.batch_size,
                     pklfile=self.data['valid_src'],
                     trgdict=self.trg_dict, srcdict=self.src_dict,
@@ -34,7 +38,7 @@ class Model(Attention):
         self.valid_iterator.read()
 
     def load_data(self):
-        self.train_iterator = WMTIterator(
+        self.train_iterator = FusionIterator(
                 batch_size=self.batch_size,
                 shuffle_mode=self.smode,
                 logger=self.logger,
