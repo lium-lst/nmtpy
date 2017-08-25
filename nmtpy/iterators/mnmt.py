@@ -8,24 +8,6 @@ from .iterator      import Iterator
 from .homogeneous   import HomogeneousData
 from ..defaults     import INT, FLOAT
 
-def pad_data(seqs, get_mask=True):
-    """Pads sequences with EOS (0) for minibatch processing."""
-    lengths = [len(s) for s in seqs]
-    maxlen = np.max(lengths) + 1
-
-    # Shape is (t_steps, samples)
-    x = np.zeros((maxlen, len(seqs))).astype(INT)
-    x_mask = np.zeros_like(x).astype(FLOAT)
-
-    for idx, s_x in enumerate(seqs):
-        x[:lengths[idx], idx] = s_x
-        x_mask[:lengths[idx] + 1, idx] = 1.
-
-    if get_mask:
-        return [x, x_mask]
-    else:
-        return [x]
-
 # This is an iterator specifically to be used by the .pkl
 # corpora files created for WMT17 Shared Task on Multimodal Machine Translation
 # Each element of the list that is pickled is in the following format:
@@ -162,7 +144,7 @@ class MNMTIterator(Iterator):
         batch = [self._seqs[i] for i in idxs]
 
         if self.src_avail:
-            data += pad_data([b[STOKENS] for b in batch], get_mask=self.mask)
+            data += Iterator.mask_data([b[STOKENS] for b in batch], get_mask=self.mask)
 
         # Source image features
         if self.imgfile is not None:
@@ -170,7 +152,7 @@ class MNMTIterator(Iterator):
             data += [x_img]
 
         if self.trg_avail:
-            data += pad_data([b[TTOKENS] for b in batch], get_mask=self.mask)
+            data += Iterator.mask_data([b[TTOKENS] for b in batch], get_mask=self.mask)
 
         return data
 
