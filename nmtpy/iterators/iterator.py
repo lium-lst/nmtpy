@@ -11,7 +11,7 @@ class Iterator(object, metaclass=ABCMeta):
     """Base Iterator class."""
 
     @staticmethod
-    def mask_data(seqs):
+    def mask_data(seqs, get_mask=True):
         """Pads sequences with EOS (0) for minibatch processing."""
         lengths = [len(s) for s in seqs]
         maxlen = np.max(lengths) + 1
