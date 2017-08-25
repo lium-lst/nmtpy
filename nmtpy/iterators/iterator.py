@@ -14,19 +14,20 @@ class Iterator(object, metaclass=ABCMeta):
     def mask_data(seqs):
         """Pads sequences with EOS (0) for minibatch processing."""
         lengths = [len(s) for s in seqs]
-        n_samples = len(seqs)
-
         maxlen = np.max(lengths) + 1
 
         # Shape is (t_steps, samples)
-        x = np.zeros((maxlen, n_samples)).astype(INT)
+        x = np.zeros((maxlen, len(seqs))).astype(INT)
         x_mask = np.zeros_like(x).astype(FLOAT)
 
         for idx, s_x in enumerate(seqs):
             x[:lengths[idx], idx] = s_x
             x_mask[:lengths[idx] + 1, idx] = 1.
 
-        return x, x_mask
+        if get_mask:
+            return [x, x_mask]
+        else:
+            return [x]
 
     def _print(self, msg):
         if self.logger:
