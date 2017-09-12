@@ -7,15 +7,24 @@ Feel free to send an e-mail to ozan.caglayan.etu@univ-lemans.fr for an invitatio
 
 ----
 
-If you use **nmtpy**, you may want to cite the following paper:
+If you use **nmtpy**, you may want to cite the following [paper](https://ufal.mff.cuni.cz/pbml/109/art-caglayan-et-al.pdf):
 ```
-@article{nmtpy,
-  author    = {Caglayan, Ozan  and Garc\'{i}a-Mart\'{i}nez, Mercedes and Bardet, Adrien and Aransa, Walid  and  Bougares, Fethi  and  Barrault, Lo\"{i}c},
+@article{nmtpy2017,
+  author    = {Ozan Caglayan and
+               Mercedes Garc\'{i}a-Mart\'{i}nez and
+               Adrien Bardet and
+               Walid Aransa and
+               Fethi Bougares and
+               Lo\"{i}c Barrault},
   title     = {NMTPY: A Flexible Toolkit for Advanced Neural Machine Translation Systems},
-  journal   = {arXiv preprint arXiv:1706.00457},
+  journal   = {Prague Bull. Math. Linguistics},
+  volume    = {109},
+  pages     = {15--28},
   year      = {2017},
-  url       = {http://arxiv.org/abs/1706.00457},
-  }
+  url       = {https://ufal.mff.cuni.cz/pbml/109/art-caglayan-et-al.pdf},
+  doi       = {10.1515/pralin-2017-0035},
+  timestamp = {Tue, 12 Sep 2017 10:01:08 +0100}
+}
 ```
 
 ----
