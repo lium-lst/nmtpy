@@ -586,7 +586,7 @@ def lstm_layer(tparams, state_below, init_state=None, init_memory=None, one_step
            m_: init_memory
            c_: init_cell_state (this is actually not used when initializing)
         """
-        
+
         preact = tensor.dot(m_, tparams[pp(prefix, 'U')])
         preact += x_
 
