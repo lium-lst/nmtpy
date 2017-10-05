@@ -1,0 +1,66 @@
+#! /usr/bin/env python
+# -*- coding: utf-8 -*-
+
+# Client for nmt-translate server
+# Send the content of an input file to the server and print the resulting translation
+
+import sys
+import re
+import http.client
+import argparse
+
+parser = argparse.ArgumentParser(description='nmt-translate client')
+parser.add_argument('inputfile', help='text to translate')
+parser.add_argument('-s', '--server', dest='HTTPserver', help='nmt-translate server adress (localhost:30060)', nargs='?', default="localhost:30060")
+args = parser.parse_args()
+
+if '@' in args.HTTPserver:
+    urlbase,proxy = args.HTTPserver.split('@')
+else:
+    urlbase = args.HTTPserver
+    proxy = None
+if proxy:
+    connectionaddress = proxy
+else:
+    connectionaddress = args.HTTPserver
+
+# request to translation server
+def translate(text):
+    # start HTTP connection (a simple TCP connection could not pass firewall)
+    r=0
+    try:
+        conn = http.client.HTTPConnection(connectionaddress)
+        conn.request('GET', urlbase, text.encode('utf8'))
+        r = conn.getresponse()
+        response=r.read()
+        return response.decode('utf8')
+    except Exception as e:
+        message = "Failed to connect: "+str(e)
+        if r:
+                message += "Error %d" % r.status
+        print(message)
+        return None
+
+# open input file
+try:
+    f = open(args.inputfile, 'r')
+    inputText = f.read().strip()
+    print("source: %s" % inputText)
+except IOError:
+    print("Failed to open input file (%s)" % args.inputfile)
+    sys.exit(1)
+
+# map input file format to translation model format
+# ex: Les onze prétendants à l'Elysée s'affrontent mardi ==> l e s | o n z e | p r é t e n d a n t s | à | l e l y s é e | s a f f r o n t e n t | m a r d i
+inputText = re.sub("[^\w\s]|[0-9]", "", inputText.lower()) # clean extra spaces and digits + lowercase
+inputText = re.sub('\s+', '|', inputText) # use pipe as word separator (for grapheme-to-phoneme conversion)
+inputText = " ".join(inputText) # tokenize: separate letters by spaces
+
+# send translation request
+rep=translate("%s"%inputText)
+
+if (not rep):
+    print ("Failed to translate: "+ str(rep))
+else:
+    print ("target: %s" % rep)
+

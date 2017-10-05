@@ -1,0 +1,250 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+
+"""Start a translation server for a translation model."""
+# Speed up beam search a little bit more with memory consumption tradeoff
+import gc
+gc.disable()
+
+import os
+import sys
+import time
+import json
+import inspect
+import argparse
+import importlib
+from multiprocessing import Process, Queue, cpu_count
+
+from collections import OrderedDict
+
+import numpy as np
+
+from nmtpy.logger           import Logger
+from nmtpy.metrics          import get_scorer
+from nmtpy.nmtutils         import idx_to_sent
+from nmtpy.textutils        import reduce_to_best
+from nmtpy.sysutils         import *
+from nmtpy.filters          import get_filter
+from nmtpy.iterators.bitext import BiTextIterator
+from nmtpy.defaults         import INT, FLOAT
+
+import nmtpy.cleanup as cleanup
+
+import io
+import socket
+import math
+import traceback
+import tempfile
+
+from http.server import BaseHTTPRequestHandler, HTTPServer
+
+# Setup the logger
+Logger.setup()
+log = Logger.get()
+
+class ServerRequestHandler(BaseHTTPRequestHandler):
+    def do_HEAD(self):
+        self.do()
+    def do_GET(self):
+        self.do()
+    def do_POST(self):
+        self.do()
+    def do_PUT(self):
+        self.do()
+
+    def do(self):
+        try:
+            # Read source sentence from HTTP request
+            length=int(self.headers.get('Content-Length'))
+            source = self.rfile.read(length).decode('utf-8')
+            log.info(" ".join(map(str, time.localtime()))+" Got a translation request: "+source)
+            
+            # Launch translation
+            target=translator.translate(source.split()+["<eos>"])
+            
+            # Log response
+            log.info(" ".join(map(str, time.localtime()))+" Translated sentence: "+target)
+            
+            # Send response
+            self.send_response(200) # Code 200: success
+            self.send_header("Content-Type","text/plain")
+            self.end_headers()
+            self.wfile.write(target.encode('utf8'))
+        
+        except Exception as e:
+            t=traceback.format_exc()
+            log.info(" ".join(map(str, time.localtime()))+" ERROR: "+str(e))
+            self.send_response(500) # Code 500: internal error
+            self.send_header("Content-Type","text/plain")
+            self.end_headers()
+            self.wfile.write("ERROR\tREQUEST FAILED\t%s\t%s"%(e,t))
+
+class Translator(object):
+    """Starts worker processes and waits for the results."""
+    def __init__(self, args):
+        self.beam_size = args.beam_size
+
+        # Always lists provided by argparse (nargs:'+')
+        self.src_files = None
+        self.ref_files = None
+
+        # Collect processed source sentences in here
+        # for further exporting to json
+        self.export = None
+
+        # Assume for now that a request for JSON exporting
+        # assumes fetching attentional alphas as well.
+        self.get_att_alphas = self.export
+
+        # Fetch other arguments
+        self.first          = args.first
+        self.nbest          = args.nbest
+        self.seed           = args.seed
+        self.mode           = args.decoder
+        self.n_jobs         = args.n_jobs
+        self.valid_mode     = args.validmode
+
+        self.models         = []
+        self.model_files    = args.models
+        self.model_options  = []
+        self.n_models       = len(self.model_files)
+
+        self.suppress_unks  = args.suppress_unks
+
+        # Post-processing filters
+        self.filters = []
+
+    def set_model_options(self):
+        for mfile in self.model_files:
+            log.info('Initializing model %s' % os.path.basename(mfile))
+            # Load model file
+            data = np.load(mfile)
+
+            #model_options = dict(np.load(mfile)['opts'].tolist())
+            model_options = get_model_options(data['opts'])
+
+            # Import the module
+            self.__class = importlib.import_module("nmtpy.models.%s" % model_options['model_type']).Model
+
+            # Create the model
+            model = self.__class(seed=self.seed, logger=None, **model_options)
+            #model.load(mfile)
+            model.load(data['tparams'].tolist())
+            model.set_dropout(False)
+            model.build_sampler()
+
+            self.models.append(model)
+            self.model_options.append(model_options)
+
+        # Sanity check for target vocabularies: they should all be same
+        if self.n_models > 1:
+            assert len(set([len(mopts['trg_dict']) for mopts in self.model_options])) == 1
+
+        # Check for post-processing filter
+        if "filter" in self.model_options[0]:
+            log.info("Hypotheses will be processed by the filters: '%s'" % model_options['filter'])
+            filters = model_options['filter'].split(',')
+            self.filters = [get_filter(f) for f in filters]
+
+        # Get inverted dictionary from the model itself
+        self.trg_idict = self.models[0].trg_idict
+
+        self.src_dict = self.models[0].src_dict
+
+        self.f_inits     = [m.f_init for m in self.models]
+        self.f_nexts     = [m.f_next for m in self.models]
+
+    def translate(self, sample_text): 
+        beam_search = self.models[0].beam_search
+
+        # Convert text to idx
+        data_dict = [np.array([[self.src_dict.get(w, 1)] for w in sample_text])]
+
+        # Get the translation, its score and alignments
+        trans, score, align = beam_search(data_dict, self.f_inits, self.f_nexts, beam_size=self.beam_size, get_att_alphas=self.get_att_alphas, suppress_unks=self.suppress_unks)
+
+        # normalize scores according to sequence lengths
+        score = score / np.array([len(s) for s in trans])
+
+        # Sort the scores and take the best(s) idx(s)
+        best_idxs = np.argsort(score)[:self.nbest]
+        trans = np.array(trans)[best_idxs]
+
+        # Check for attention weights
+        # if align is not None:
+        #     align = np.array(align)[best_idxs]
+
+        ## Apply post-processing filters like compound stitching
+        #for i in range(len(trans)):
+        #    # List of hyps (length 1 if nbest==1) per source sentence
+        #    for j in range(len(trans[i])):
+        #        inp = trans[i][j]
+        #        for filt in self.filters:
+        #            inp = filt(inp)
+        #        trans[i][j] = inp
+
+        # Prepare and dump
+        self.hyps = [self.trg_idict.get(w, 1) for w in trans[0][:-1]]
+        hyps = " ".join(self.hyps)
+         
+        # Send response back
+        return hyps
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(prog='nmt-translate')
+    parser.add_argument('-f', '--first'         , type=int, default=0,      help="How many sentences should be translated, useful for debugging.")
+    parser.add_argument('-j', '--n-jobs'        , type=int, default=8,      help="Number of processes (default: 8, 0: Auto)")
+    parser.add_argument('-b', '--beam-size'     , type=int, default=12,     help="Beam size (only for beam-search)")
+    parser.add_argument('-N', '--nbest'         , type=int, default=1,      help="N for N-best output (only for beam-search)")
+    parser.add_argument('-r', '--seed'          , type=int, default=1234,   help="Random number seed for sampling mode (default: 1234)")
+
+    parser.add_argument('-v', '--validmode'     , default='single',         help="Validation mode for WMT16 MMT Task2: all/pairs/single")
+    parser.add_argument('-D', '--decoder'       , default='beamsearch',     choices=['beamsearch', 'argmax', 'sample', 'forced'], help="Decoding mode")
+
+    parser.add_argument('-M', '--metrics'       , type=str, default='bleu', help="Comma separated list of metrics (bleu or bleu,meteor)")
+    parser.add_argument('-o', '--saveto'        , type=str, default=None,   help="Output translations file (if not given, only metrics will be printed)")
+    parser.add_argument('-s', '--score'         , action='store_true',      help="Print scores of each sentence even nbest == 1")
+    parser.add_argument('-u', '--suppress-unks' , action='store_true',      help="Don't produce <unk>'s in beam search")
+
+    parser.add_argument('-m', '--models'        , nargs='+', required=True, help="Model files")
+
+    parser.add_argument('-p', '--port',        dest='port', help='port du serveur HTTP (30060)', type=int, default=30060)
+
+    args = parser.parse_args()
+
+    if args.decoder == "forced" and (args.src_files is None or args.ref_files is None):
+        print("Error: Forced decoding requires that you give src and ref files explicitly.")
+        sys.exit(1)
+
+    if args.n_jobs == 0:
+        # Auto infer CPU number
+        args.n_jobs = (cpu_count() / 2) - 1
+
+    # This is to avoid thread explosion. Allow
+    # each process to use a single thread.
+    os.environ["OMP_NUM_THREADS"] = "1"
+    os.environ["MKL_NUM_THREADS"] = "1"
+
+    # Force CPU
+    os.environ["THEANO_FLAGS"] = "device=cpu,optimizer_including=local_remove_all_assert"
+
+    # Print some informations
+    log.info("%d CPU processes - beam size = %2d" % (args.n_jobs, args.beam_size))
+    log.info("Using %d model(s) for translation" % len(args.models))
+
+    # Create translator object
+    translator = Translator(args)
+    translator.set_model_options()
+
+    # Initialisation du serveur :
+    log.info("Lancement du serveur en HTTP (port %s)..." % args.port)
+    try:
+        httpd = HTTPServer(("", args.port), ServerRequestHandler)
+    except Exception as e:
+        print ("unable to start server: " + repr(e))
+        sys.exit(1)
+
+    # Lancement du serveur / traitement des requêtes entrantes
+    while 1:
+        httpd.handle_request()
+
