@@ -57,6 +57,9 @@ class BaseModel(object, metaclass=ABCMeta):
 
     def set_trng(self, seed):
         """Set the seed for Theano RNG."""
+        if seed == 0:
+            # No seed given, randomly pick the seed
+            seed = np.random.randint(2**29) + 1
         self.trng = RandomStreams(seed)
 
     def set_dropout(self, val):
