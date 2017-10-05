@@ -232,7 +232,8 @@ if __name__ == '__main__':
                           dont_update=dont_update, opt_history=opt_history)
 
     # Reseed to retain the order of shuffle operations
-    np.random.seed(train_args.seed)
+    if train_args.seed != 0:
+        np.random.seed(train_args.seed)
 
     # Create mainloop
     loop = MainLoop(model, log, train_args)
