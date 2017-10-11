@@ -20,10 +20,10 @@ class Model(BaseModel):
         self.__logger = logger
 
         # Load dictionaries
-        dicts = kwargs['dicts']
+        dicts = kwargs.pop('dicts')
 
         # Let's default to GRU
-        self.rnn_type = kwargs.get('rnn_type', 'gru')
+        self.rnn_type = kwargs.pop('rnn_type', 'gru')
 
         self.src_dict, src_idict = load_dictionary(dicts['src'])
         self.n_words = min(self.n_words, len(self.src_dict)) \
