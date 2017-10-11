@@ -52,8 +52,8 @@ class BaseModel(object, metaclass=ABCMeta):
         """Filter out None's and '__[a-zA-Z]' then store into self.options."""
         self.options = OrderedDict()
         for k,v in optdict.items():
-            # Don't keep model attributes with __ prefix
-            if v is not None and not k.startswith('__'):
+            # Don't keep model attributes with _ prefix
+            if v is not None and not k.startswith('_'):
                 self.options[k] = v
 
     def set_trng(self, seed):
