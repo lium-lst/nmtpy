@@ -34,7 +34,7 @@ class Model(BaseModel):
         self.enc_type = kwargs.get('enc_type', 'gru')
 
         # Do we apply layer normalization to GRU?
-        self.lnorm = kwargs.get('layer_norm', False)
+        self.layer_norm = kwargs.get('layer_norm', False)
 
         # Shuffle mode (default: No shuffle)
         self.smode = kwargs.get('shuffle_mode', 'simple')

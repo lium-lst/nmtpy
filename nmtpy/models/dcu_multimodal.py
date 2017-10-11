@@ -303,9 +303,9 @@ class Model(Attention):
         #############################################
         # Forward and backward encoder parameters
         params = get_new_layer('gru')[0](params, prefix='text_encoder', nin=self.embedding_dim,
-                                         dim=self.rnn_dim, scale=self.weight_init, layernorm=self.lnorm)
+                                         dim=self.rnn_dim, scale=self.weight_init, layernorm=self.layer_norm)
         params = get_new_layer('gru')[0](params, prefix='text_encoder_r', nin=self.embedding_dim,
-                                         dim=self.rnn_dim, scale=self.weight_init, layernorm=self.lnorm)
+                                         dim=self.rnn_dim, scale=self.weight_init, layernorm=self.layer_norm)
 
         ##########
         # Decoder
@@ -378,12 +378,12 @@ class Model(Attention):
         # word embedding for forward rnn (source)
         emb  = dropout(self.tparams['Wemb_enc'][x.flatten()], self.trng, self.emb_dropout, self.use_dropout)
         emb  = emb.reshape([n_timesteps, n_samples, self.embedding_dim])
-        forw = get_new_layer('gru')[1](self.tparams, emb, prefix='text_encoder', mask=x_mask, layernorm=self.lnorm)
+        forw = get_new_layer('gru')[1](self.tparams, emb, prefix='text_encoder', mask=x_mask, layernorm=self.layer_norm)
 
         # word embedding for backward rnn (source)
         embr = dropout(self.tparams['Wemb_enc'][xr.flatten()], self.trng, self.emb_dropout, self.use_dropout)
         embr = embr.reshape([n_timesteps, n_samples, self.embedding_dim])
-        back = get_new_layer('gru')[1](self.tparams, embr, prefix='text_encoder_r', mask=xr_mask, layernorm=self.lnorm)
+        back = get_new_layer('gru')[1](self.tparams, embr, prefix='text_encoder_r', mask=xr_mask, layernorm=self.layer_norm)
 
         # Source context will be the concatenation of forward and backward rnns
         # leading to a vector of 2*rnn_dim for each timestep
@@ -508,11 +508,11 @@ class Model(Attention):
         #####################
         emb  = self.tparams['Wemb_enc'][x.flatten()]
         emb  = emb.reshape([n_timesteps, n_samples, self.embedding_dim])
-        forw = get_new_layer('gru')[1](self.tparams, emb, prefix='text_encoder', layernorm=self.lnorm)
+        forw = get_new_layer('gru')[1](self.tparams, emb, prefix='text_encoder', layernorm=self.layer_norm)
 
         embr = self.tparams['Wemb_enc'][x[::-1].flatten()]
         embr = embr.reshape([n_timesteps, n_samples, self.embedding_dim])
-        back = get_new_layer('gru')[1](self.tparams, embr, prefix='text_encoder_r', layernorm=self.lnorm)
+        back = get_new_layer('gru')[1](self.tparams, embr, prefix='text_encoder_r', layernorm=self.layer_norm)
 
         # concatenate forward and backward rnn hidden states
         text_ctx = tensor.concatenate([forw[0], back[0][::-1]], axis=forw[0].ndim-1)

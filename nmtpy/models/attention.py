@@ -33,7 +33,7 @@ class Model(BaseModel):
         # Do we apply layer normalization to GRU encoder?
         # NOTE: layernorm in CGRU seems to degrade the performance
         # so its explicitly disabled.
-        self.lnorm = kwargs.pop('layer_norm', False)
+        self.layer_norm = kwargs.pop('layer_norm', False)
 
         # Shuffle mode (default: trglen (ordered by target len))
         self.smode = kwargs.pop('shuffle_mode', 'trglen')
@@ -330,15 +330,15 @@ class Model(BaseModel):
         # encoder: bidirectional RNN
         ############################
         # Forward encoder
-        params = get_new_layer(self.enc_type)[0](params, prefix='encoder', nin=self.embedding_dim, dim=self.rnn_dim, scale=self.weight_init, layernorm=self.lnorm)
+        params = get_new_layer(self.enc_type)[0](params, prefix='encoder', nin=self.embedding_dim, dim=self.rnn_dim, scale=self.weight_init, layernorm=self.layer_norm)
         # Backwards encoder
-        params = get_new_layer(self.enc_type)[0](params, prefix='encoder_r', nin=self.embedding_dim, dim=self.rnn_dim, scale=self.weight_init, layernorm=self.lnorm)
+        params = get_new_layer(self.enc_type)[0](params, prefix='encoder_r', nin=self.embedding_dim, dim=self.rnn_dim, scale=self.weight_init, layernorm=self.layer_norm)
 
         # How many additional encoder layers to stack?
         for i in range(1, self.n_enc_layers):
             params = get_new_layer(self.enc_type)[0](params, prefix='deep_encoder_%d' % i,
                                                      nin=self.ctx_dim, dim=self.ctx_dim,
-                                                     scale=self.weight_init, layernorm=self.lnorm)
+                                                     scale=self.weight_init, layernorm=self.layer_norm)
 
         ############################
         # How do we initialize CGRU?
@@ -391,13 +391,13 @@ class Model(BaseModel):
         emb = dropout(self.tparams[self.src_emb_name][x.flatten()],
                       self.trng, self.emb_dropout, self.use_dropout)
         emb = emb.reshape([n_timesteps, n_samples, self.embedding_dim])
-        proj = get_new_layer(self.enc_type)[1](self.tparams, emb, prefix='encoder', mask=x_mask, layernorm=self.lnorm)
+        proj = get_new_layer(self.enc_type)[1](self.tparams, emb, prefix='encoder', mask=x_mask, layernorm=self.layer_norm)
 
         # word embedding for backward rnn (source)
         embr = dropout(self.tparams[self.src_emb_name][xr.flatten()],
                        self.trng, self.emb_dropout, self.use_dropout)
         embr = embr.reshape([n_timesteps, n_samples, self.embedding_dim])
-        projr = get_new_layer(self.enc_type)[1](self.tparams, embr, prefix='encoder_r', mask=xr_mask, layernorm=self.lnorm)
+        projr = get_new_layer(self.enc_type)[1](self.tparams, embr, prefix='encoder_r', mask=xr_mask, layernorm=self.layer_norm)
 
         # context will be the concatenation of forward and backward rnns
         ctx = [tensor.concatenate([proj[0], projr[0][::-1]], axis=proj[0].ndim-1)]
@@ -405,7 +405,7 @@ class Model(BaseModel):
         for i in range(1, self.n_enc_layers):
             ctx = get_new_layer(self.enc_type)[1](self.tparams, ctx[0],
                                                   prefix='deepencoder_%d' % i,
-                                                  mask=x_mask, layernorm=self.lnorm)
+                                                  mask=x_mask, layernorm=self.layer_norm)
 
         # Apply dropout
         ctx = dropout(ctx[0], self.trng, self.ctx_dropout, self.use_dropout)
@@ -487,8 +487,8 @@ class Model(BaseModel):
         embr = embr.reshape([n_timesteps, n_samples, self.embedding_dim])
 
         # encoder
-        proj  = get_new_layer(self.enc_type)[1](self.tparams, emb, prefix='encoder', layernorm=self.lnorm)
-        projr = get_new_layer(self.enc_type)[1](self.tparams, embr, prefix='encoder_r', layernorm=self.lnorm)
+        proj  = get_new_layer(self.enc_type)[1](self.tparams, emb, prefix='encoder', layernorm=self.layer_norm)
+        projr = get_new_layer(self.enc_type)[1](self.tparams, embr, prefix='encoder_r', layernorm=self.layer_norm)
 
         # concatenate forward and backward rnn hidden states
         ctx = [tensor.concatenate([proj[0], projr[0][::-1]], axis=proj[0].ndim-1)]
@@ -496,7 +496,7 @@ class Model(BaseModel):
         for i in range(1, self.n_enc_layers):
             ctx = get_new_layer(self.enc_type)[1](self.tparams, ctx[0],
                                                   prefix='deepencoder_%d' % i,
-                                                  layernorm=self.lnorm)
+                                                  layernorm=self.layer_norm)
 
         ctx = ctx[0]
 
