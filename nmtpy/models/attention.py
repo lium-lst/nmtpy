@@ -36,7 +36,7 @@ class Model(BaseModel):
         self.layer_norm = kwargs.pop('layer_norm', False)
 
         # Shuffle mode (default: trglen (ordered by target len))
-        self.smode = kwargs.pop('shuffle_mode', 'trglen')
+        self.shuffle_mode = kwargs.pop('shuffle_mode', 'trglen')
 
         # How to initialize CGRU: text (default), zero (initialize with zero)
         self.init_cgru = kwargs.pop('init_cgru', 'text')
@@ -300,7 +300,7 @@ class Model(BaseModel):
 
         self.train_iterator = BiTextIterator(
                                 batch_size=self.batch_size,
-                                shuffle_mode=self.smode,
+                                shuffle_mode=self.shuffle_mode,
                                 logger=self._logger,
                                 srcfile=self.data['train_src'], srcdict=self.src_dict,
                                 trgfile=self.data['train_trg'], trgdict=self.trg_dict,

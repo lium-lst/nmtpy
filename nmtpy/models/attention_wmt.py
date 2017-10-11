@@ -40,7 +40,7 @@ class Model(Attention):
     def load_data(self):
         self.train_iterator = FusionIterator(
                 batch_size=self.batch_size,
-                shuffle_mode=self.smode,
+                shuffle_mode=self.shuffle_mode,
                 logger=self._logger,
                 pklfile=self.data['train_src'],
                 trgdict=self.trg_dict, srcdict=self.src_dict,

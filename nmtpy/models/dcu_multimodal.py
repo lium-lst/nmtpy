@@ -247,7 +247,7 @@ class Model(Attention):
         # Load training data
         self.train_iterator = FusionIterator(
                 batch_size=self.batch_size,
-                shuffle_mode=self.smode,
+                shuffle_mode=self.shuffle_mode,
                 logger=self._logger,
                 pklfile=self.data['train_src'],
                 imgfile=self.data['train_img'],

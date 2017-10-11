@@ -37,7 +37,7 @@ class Model(BaseModel):
         self.layer_norm = kwargs.get('layer_norm', False)
 
         # Shuffle mode (default: No shuffle)
-        self.smode = kwargs.get('shuffle_mode', 'simple')
+        self.shuffle_mode = kwargs.get('shuffle_mode', 'simple')
 
         # How to initialize CGRU
         self.init_cgru = kwargs.get('init_cgru', 'text')
@@ -424,7 +424,7 @@ class Model(BaseModel):
     def load_data(self):
         self.train_iterator = FactorsIterator(
                                 batch_size=self.batch_size,
-                                shuffle_mode=self.smode,
+                                shuffle_mode=self.shuffle_mode,
                                 logger=self._logger,
                                 srcfile=self.data['train_src'], srcdict=self.src_dict,
                                 trglemfile=self.data['train_trg1'], trglemdict=self.trg_dict,
