@@ -28,30 +28,30 @@ class Model(BaseModel):
 
         # Use GRU by default as encoder
         # NOTE: not tested at all with LSTM
-        self.enc_type = kwargs.get('enc_type', 'gru')
+        self.enc_type = kwargs.pop('enc_type', 'gru')
 
         # Do we apply layer normalization to GRU encoder?
         # NOTE: layernorm in CGRU seems to degrade the performance
         # so its explicitly disabled.
-        self.lnorm = kwargs.get('layer_norm', False)
+        self.lnorm = kwargs.pop('layer_norm', False)
 
         # Shuffle mode (default: trglen (ordered by target len))
-        self.smode = kwargs.get('shuffle_mode', 'trglen')
+        self.smode = kwargs.pop('shuffle_mode', 'trglen')
 
         # How to initialize CGRU: text (default), zero (initialize with zero)
-        self.init_cgru = kwargs.get('init_cgru', 'text')
+        self.init_cgru = kwargs.pop('init_cgru', 'text')
 
         # If enabled, just use the decoder's hidden state for conditioning
         # the target probability instead of dl4mt style 3-way fusion.
-        self.simple_output = kwargs.get('simple_output', False)
+        self.simple_output = kwargs.pop('simple_output', False)
 
         # Get dropout parameters
-        self.emb_dropout = kwargs.get('emb_dropout', 0.)
-        self.ctx_dropout = kwargs.get('ctx_dropout', 0.)
-        self.out_dropout = kwargs.get('out_dropout', 0.)
+        self.emb_dropout = kwargs.pop('emb_dropout', 0.)
+        self.ctx_dropout = kwargs.pop('ctx_dropout', 0.)
+        self.out_dropout = kwargs.pop('out_dropout', 0.)
 
         # Number of additional GRU encoders for source sentences
-        self.n_enc_layers  = kwargs.get('n_enc_layers' , 1)
+        self.n_enc_layers  = kwargs.pop('n_enc_layers' , 1)
 
         # Shared embedding schemes
         # False: disabled
@@ -60,7 +60,7 @@ class Model(BaseModel):
         # 3way:  Share all embeddings in the network including source.
         #        - Prepare single vocab pkl with nmt-build-dict -s option.
         #        - Give the same pkl to both src and trg in model config.
-        self.tied_emb = kwargs.get('tied_emb', False)
+        self.tied_emb = kwargs.pop('tied_emb', False)
 
         # Let's call source and target embedding layers Wemb_enc and Wemb_dec
         # by default.
@@ -70,27 +70,25 @@ class Model(BaseModel):
         ###################
         # Load dictionaries
         ###################
-        # Get the filenames for vocab pkl's
-        src_dict_file = kwargs['dicts']['src']
-        trg_dict_file = kwargs['dicts']['trg']
+
+        # Pop the dicts first
+        dicts = kwargs.pop('dicts')
 
         if 'src_dict' in kwargs:
-            # Already passed through kwargs (nmt-translate)
-            self.src_dict = kwargs['src_dict']
-            # Invert dict
+            # When translating, the dict will already be available
+            self.src_dict = kwargs.pop('src_dict')
             src_idict = invert_dictionary(self.src_dict)
         else:
             # Load them from pkl files
-            self.src_dict, src_idict = load_dictionary(src_dict_file)
+            self.src_dict, src_idict = load_dictionary(dicts['src'])
 
         if 'trg_dict' in kwargs:
-            # Already passed through kwargs (nmt-translate)
-            self.trg_dict = kwargs['trg_dict']
-            # Invert dict
+            # When translating, the dict will already be available
+            self.trg_dict = kwargs.pop('trg_dict')
             trg_idict = invert_dictionary(self.trg_dict)
         else:
             # Load them from pkl files
-            self.trg_dict, trg_idict = load_dictionary(trg_dict_file)
+            self.trg_dict, trg_idict = load_dictionary(dicts['trg'])
 
         ####################################################
         # Limit shortlist sizes to replace
