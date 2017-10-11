@@ -18,6 +18,9 @@ class Model(BaseModel):
         # Call parent's init first
         super(Model, self).__init__(**kwargs)
 
+        # Set logger
+        self.__logger = logger
+
         ######################################################
         # All the kwargs arguments come from the configuration
         # file or as extra arguments given to nmt-train.
@@ -126,7 +129,6 @@ class Model(BaseModel):
 
         # We call this once to setup dropout mechanism correctly
         self.set_dropout(False)
-        self.logger = logger
 
     @staticmethod
     def beam_search(inputs, f_inits, f_nexts, beam_size=12, maxlen=100, suppress_unks=False, **kwargs):
@@ -263,14 +265,14 @@ class Model(BaseModel):
     def info(self):
         """Prints some information about the model."""
 
-        self.logger.info('Source vocabulary size: %d', self.n_words_src)
-        self.logger.info('Target vocabulary size: %d', self.n_words_trg)
-        self.logger.info('%d training samples' % self.train_iterator.n_samples)
-        self.logger.info('  %d src UNKs, %d trg UNKs' % (self.train_iterator.n_unks_src, self.train_iterator.n_unks_trg))
+        self.__logger.info('Source vocabulary size: %d', self.n_words_src)
+        self.__logger.info('Target vocabulary size: %d', self.n_words_trg)
+        self.__logger.info('%d training samples' % self.train_iterator.n_samples)
+        self.__logger.info('  %d src UNKs, %d trg UNKs' % (self.train_iterator.n_unks_src, self.train_iterator.n_unks_trg))
         if 'valid_src' in self.data:
-            self.logger.info('%d validation samples' % self.valid_iterator.n_samples)
-            self.logger.info('  %d src UNKs, %d trg UNKs' % (self.valid_iterator.n_unks_src, self.valid_iterator.n_unks_trg))
-        self.logger.info('dropout (emb,ctx,out): %.2f, %.2f, %.2f' % (self.emb_dropout, self.ctx_dropout, self.out_dropout))
+            self.__logger.info('%d validation samples' % self.valid_iterator.n_samples)
+            self.__logger.info('  %d src UNKs, %d trg UNKs' % (self.valid_iterator.n_unks_src, self.valid_iterator.n_unks_trg))
+        self.__logger.info('dropout (emb,ctx,out): %.2f, %.2f, %.2f' % (self.emb_dropout, self.ctx_dropout, self.out_dropout))
 
     def load_valid_data(self, from_translate=False):
         """Loads validation data."""
@@ -301,7 +303,7 @@ class Model(BaseModel):
         self.train_iterator = BiTextIterator(
                                 batch_size=self.batch_size,
                                 shuffle_mode=self.smode,
-                                logger=self.logger,
+                                logger=self.__logger,
                                 srcfile=self.data['train_src'], srcdict=self.src_dict,
                                 trgfile=self.data['train_trg'], trgdict=self.trg_dict,
                                 n_words_src=self.n_words_src,

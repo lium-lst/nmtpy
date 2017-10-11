@@ -27,6 +27,9 @@ class Model(BaseModel):
         # Call parent's init first
         super(Model, self).__init__(**kwargs)
 
+        # Set logger
+        self.__logger = logger
+
         # Use GRU by default as encoder
         self.enc_type = kwargs.get('enc_type', 'gru')
 
@@ -132,8 +135,7 @@ class Model(BaseModel):
 
         # We call this once to setup dropout mechanism correctly
         self.set_dropout(False)
-        self.logger = logger
-    
+
     def run_beam_search(self, beam_size=12, n_jobs=8, metric='bleu', mode='beamsearch', valid_mode='single', f_valid_out=None):
         """Save model under /tmp for passing it to nmt-translate-factors."""
         # Save model temporarily
@@ -148,9 +150,9 @@ class Model(BaseModel):
                                           f_valid_out=f_valid_out,
                                           factors=self.factors)
         lem_bleu_str, lem_bleu = result['out1']
-        self.logger.info("Out1: %s" % lem_bleu_str)
+        self.__logger.info("Out1: %s" % lem_bleu_str)
         fact_bleu_str, fact_bleu = result['out2']
-        self.logger.info("Out2: %s" % fact_bleu_str)
+        self.__logger.info("Out2: %s" % fact_bleu_str)
 
         return {metric: result[metric]}
 
@@ -388,12 +390,12 @@ class Model(BaseModel):
         return final_sample_lem, final_score, final_alignments, final_sample_fact
 
     def info(self):
-        self.logger.info('Source vocabulary size: %d', self.n_words_src)
-        self.logger.info('Target vocabulary size: %d', self.n_words_trg1)
-        self.logger.info('Target factors vocabulary size: %d', self.n_words_trg2)
-        self.logger.info('%d training samples' % self.train_iterator.n_samples)
-        self.logger.info('%d validation samples' % self.valid_iterator.n_samples)
-        self.logger.info('dropout (emb,ctx,out): %.2f, %.2f, %.2f' % (self.emb_dropout, self.ctx_dropout, self.out_dropout))
+        self.__logger.info('Source vocabulary size: %d', self.n_words_src)
+        self.__logger.info('Target vocabulary size: %d', self.n_words_trg1)
+        self.__logger.info('Target factors vocabulary size: %d', self.n_words_trg2)
+        self.__logger.info('%d training samples' % self.train_iterator.n_samples)
+        self.__logger.info('%d validation samples' % self.valid_iterator.n_samples)
+        self.__logger.info('dropout (emb,ctx,out): %.2f, %.2f, %.2f' % (self.emb_dropout, self.ctx_dropout, self.out_dropout))
 
     def load_valid_data(self, from_translate=False):
         self.valid_ref_files = self.data['valid_trg']
@@ -423,7 +425,7 @@ class Model(BaseModel):
         self.train_iterator = FactorsIterator(
                                 batch_size=self.batch_size,
                                 shuffle_mode=self.smode,
-                                logger=self.logger,
+                                logger=self.__logger,
                                 srcfile=self.data['train_src'], srcdict=self.src_dict,
                                 trglemfile=self.data['train_trg1'], trglemdict=self.trg_dict,
                                 trgfactfile=self.data['train_trg2'], trgfactdict=self.trgfact_dict,

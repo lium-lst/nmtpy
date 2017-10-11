@@ -16,6 +16,9 @@ class Model(BaseModel):
         # Call parent's init first
         super(Model, self).__init__(**kwargs)
 
+        # Set the logger
+        self.__logger = logger
+
         # Load dictionaries
         dicts = kwargs['dicts']
 
@@ -30,7 +33,6 @@ class Model(BaseModel):
         self.src_idict = src_idict
         self.set_trng(seed)
         self.set_dropout(False)
-        self.logger = logger
 
     def load_valid_data(self):
         self.valid_iterator = TextIterator(

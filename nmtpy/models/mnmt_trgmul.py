@@ -27,7 +27,7 @@ class Model(Attention):
         # Load training data
         self.train_iterator = MNMTIterator(
                 batch_size=self.batch_size,
-                logger=self.logger,
+                logger=self.__logger,
                 pklfile=self.data['train_src'],
                 imgfile=self.data['train_img'],
                 trgdict=self.trg_dict,

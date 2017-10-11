@@ -30,14 +30,14 @@ class Iterator(object, metaclass=ABCMeta):
             return [x]
 
     def _print(self, msg):
-        if self.logger:
-            self.logger.info(msg)
+        if self.__logger:
+            self.__logger.info(msg)
 
     def __init__(self, batch_size, seed=1234, mask=True, shuffle_mode=None, logger=None):
         self.n_samples  = 0
         self.seed       = seed
         self.mask       = mask
-        self.logger     = logger
+        self.__logger     = logger
         self.batch_size = batch_size
         self._keys     = []
         self._idxs     = []
