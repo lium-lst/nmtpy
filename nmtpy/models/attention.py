@@ -19,7 +19,7 @@ class Model(BaseModel):
         super(Model, self).__init__(**kwargs)
 
         # Set logger
-        self.__logger = logger
+        self._logger = logger
 
         ######################################################
         # All the kwargs arguments come from the configuration
@@ -263,14 +263,14 @@ class Model(BaseModel):
     def info(self):
         """Prints some information about the model."""
 
-        self.__logger.info('Source vocabulary size: %d', self.n_words_src)
-        self.__logger.info('Target vocabulary size: %d', self.n_words_trg)
-        self.__logger.info('%d training samples' % self.train_iterator.n_samples)
-        self.__logger.info('  %d src UNKs, %d trg UNKs' % (self.train_iterator.n_unks_src, self.train_iterator.n_unks_trg))
+        self._logger.info('Source vocabulary size: %d', self.n_words_src)
+        self._logger.info('Target vocabulary size: %d', self.n_words_trg)
+        self._logger.info('%d training samples' % self.train_iterator.n_samples)
+        self._logger.info('  %d src UNKs, %d trg UNKs' % (self.train_iterator.n_unks_src, self.train_iterator.n_unks_trg))
         if 'valid_src' in self.data:
-            self.__logger.info('%d validation samples' % self.valid_iterator.n_samples)
-            self.__logger.info('  %d src UNKs, %d trg UNKs' % (self.valid_iterator.n_unks_src, self.valid_iterator.n_unks_trg))
-        self.__logger.info('dropout (emb,ctx,out): %.2f, %.2f, %.2f' % (self.emb_dropout, self.ctx_dropout, self.out_dropout))
+            self._logger.info('%d validation samples' % self.valid_iterator.n_samples)
+            self._logger.info('  %d src UNKs, %d trg UNKs' % (self.valid_iterator.n_unks_src, self.valid_iterator.n_unks_trg))
+        self._logger.info('dropout (emb,ctx,out): %.2f, %.2f, %.2f' % (self.emb_dropout, self.ctx_dropout, self.out_dropout))
 
     def load_valid_data(self, from_translate=False):
         """Loads validation data."""
@@ -301,7 +301,7 @@ class Model(BaseModel):
         self.train_iterator = BiTextIterator(
                                 batch_size=self.batch_size,
                                 shuffle_mode=self.smode,
-                                logger=self.__logger,
+                                logger=self._logger,
                                 srcfile=self.data['train_src'], srcdict=self.src_dict,
                                 trgfile=self.data['train_trg'], trgdict=self.trg_dict,
                                 n_words_src=self.n_words_src,

@@ -232,23 +232,23 @@ class Model(Attention):
         self.gru_decoder        = gru_decoder_multi
 
     def info(self):
-        self.__logger.info('Source vocabulary size: %d', self.n_words_src)
-        self.__logger.info('Target vocabulary size: %d', self.n_words_trg)
-        self.__logger.info('%d training samples' % self.train_iterator.n_samples)
-        self.__logger.info('  %d/%d UNKs in source, %d/%d UNKs in target' % (self.train_iterator.unk_src,
+        self._logger.info('Source vocabulary size: %d', self.n_words_src)
+        self._logger.info('Target vocabulary size: %d', self.n_words_trg)
+        self._logger.info('%d training samples' % self.train_iterator.n_samples)
+        self._logger.info('  %d/%d UNKs in source, %d/%d UNKs in target' % (self.train_iterator.unk_src,
                                                                            self.train_iterator.total_src_words,
                                                                            self.train_iterator.unk_trg,
                                                                            self.train_iterator.total_trg_words))
-        self.__logger.info('%d validation samples' % self.valid_iterator.n_samples)
-        self.__logger.info('  %d UNKs in source' % self.valid_iterator.unk_src)
-        self.__logger.info('dropout (emb,ctx,out): %.2f, %.2f, %.2f' % (self.emb_dropout, self.ctx_dropout, self.out_dropout))
+        self._logger.info('%d validation samples' % self.valid_iterator.n_samples)
+        self._logger.info('  %d UNKs in source' % self.valid_iterator.unk_src)
+        self._logger.info('dropout (emb,ctx,out): %.2f, %.2f, %.2f' % (self.emb_dropout, self.ctx_dropout, self.out_dropout))
 
     def load_data(self):
         # Load training data
         self.train_iterator = FusionIterator(
                 batch_size=self.batch_size,
                 shuffle_mode=self.smode,
-                logger=self.__logger,
+                logger=self._logger,
                 pklfile=self.data['train_src'],
                 imgfile=self.data['train_img'],
                 trgdict=self.trg_dict,

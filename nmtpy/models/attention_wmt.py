@@ -41,7 +41,7 @@ class Model(Attention):
         self.train_iterator = FusionIterator(
                 batch_size=self.batch_size,
                 shuffle_mode=self.smode,
-                logger=self.__logger,
+                logger=self._logger,
                 pklfile=self.data['train_src'],
                 trgdict=self.trg_dict, srcdict=self.src_dict,
                 n_words_trg=self.n_words_trg, n_words_src=self.n_words_src,

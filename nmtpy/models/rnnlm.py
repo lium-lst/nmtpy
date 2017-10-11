@@ -17,7 +17,7 @@ class Model(BaseModel):
         super(Model, self).__init__(**kwargs)
 
         # Set the logger
-        self.__logger = logger
+        self._logger = logger
 
         # Load dictionaries
         dicts = kwargs.pop('dicts')
