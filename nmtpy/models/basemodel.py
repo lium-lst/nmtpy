@@ -15,7 +15,7 @@ from ..optimizers import get_optimizer
 
 class BaseModel(object, metaclass=ABCMeta):
     def __init__(self, **kwargs):
-        # Merge incoming parameters
+        # This will save all arguments as instance attributes
         self.__dict__.update(kwargs)
 
         # Will be set when set_dropout is first called
@@ -29,6 +29,7 @@ class BaseModel(object, metaclass=ABCMeta):
         self.f_init         = None
         self.f_next         = None
 
+        # Model parameters, i.e. weights and biases
         self.initial_params = None
         self.tparams        = None
 
