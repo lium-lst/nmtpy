@@ -12,7 +12,7 @@ class Model(Attention):
         # Call parent's init first
         super(Model, self).__init__(seed, logger, **kwargs)
 
-        self.data_mode = kwargs.get('data_mode', 'pairs')
+        self.data_mode = kwargs.pop('data_mode', 'pairs')
 
     def load_valid_data(self, from_translate=False, data_mode='single'):
         if from_translate:
