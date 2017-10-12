@@ -105,13 +105,13 @@ class Model(AttentionFnmt):
 
         # word embedding for forward rnn (source)
         emb = dropout(self.tparams['Wemb_enc'][x.flatten()],
-                      self.trng, self.emb_dropout, self.use_dropout)
+                      self._trng, self.emb_dropout, self.use_dropout)
         emb = emb.reshape([n_timesteps, n_samples, self.embedding_dim])
         proj = get_new_layer(self.enc_type)[1](self.tparams, emb, prefix='encoder', mask=x_mask, layernorm=self.layer_norm)
 
         # word embedding for backward rnn (source)
         embr = dropout(self.tparams['Wemb_enc'][xr.flatten()],
-                       self.trng, self.emb_dropout, self.use_dropout)
+                       self._trng, self.emb_dropout, self.use_dropout)
         embr = embr.reshape([n_timesteps, n_samples, self.embedding_dim])
         projr = get_new_layer(self.enc_type)[1](self.tparams, embr, prefix='encoder_r', mask=xr_mask, layernorm=self.layer_norm)
 
@@ -124,7 +124,7 @@ class Model(AttentionFnmt):
                                                   mask=x_mask, layernorm=self.layer_norm)
 
         # Apply dropout
-        ctx = dropout(ctx[0], self.trng, self.ctx_dropout, self.use_dropout)
+        ctx = dropout(ctx[0], self._trng, self.ctx_dropout, self.use_dropout)
 
         if self.init_cgru == 'text':
             # mean of the context (across time) will be used to initialize decoder rnn
@@ -175,12 +175,12 @@ class Model(AttentionFnmt):
             logit_lem = get_new_layer('ff')[1](self.tparams, emb_lem, prefix='ff_logit_lem', activ='linear')
             logit_fact = get_new_layer('ff')[1](self.tparams, emb_fact, prefix='ff_logit_fact', activ='linear')
 
-            logit1 = dropout(tanh(logit_gru + logit_lem + logit_ctx), self.trng, self.out_dropout, self.use_dropout)
-            logit2 = dropout(tanh(logit_gru + logit_fact + logit_ctx), self.trng, self.out_dropout, self.use_dropout)
+            logit1 = dropout(tanh(logit_gru + logit_lem + logit_ctx), self._trng, self.out_dropout, self.use_dropout)
+            logit2 = dropout(tanh(logit_gru + logit_fact + logit_ctx), self._trng, self.out_dropout, self.use_dropout)
         else:
             logit_prev = get_new_layer('ff')[1](self.tparams, emb_prev, prefix='ff_logit_prev', activ='linear')
 
-            logit = dropout(tanh(logit_gru + logit_prev + logit_ctx), self.trng, self.out_dropout, self.use_dropout)
+            logit = dropout(tanh(logit_gru + logit_prev + logit_ctx), self._trng, self.out_dropout, self.use_dropout)
 
         if self.tied_emb is False:
             logit_trg = get_new_layer('ff')[1](self.tparams, logit, prefix='ff_logit_trg', activ='linear')
@@ -321,12 +321,12 @@ class Model(AttentionFnmt):
         # Sample from the softmax distribution
         next_probs_trg = tensor.exp(next_log_probs_trg)
         next_probs_trgmult = tensor.exp(next_log_probs_trgmult)
-        next_word_trg = self.trng.multinomial(pvals=next_probs_trg).argmax(1)
-        next_word_trgmult = self.trng.multinomial(pvals=next_probs_trgmult).argmax(1)
+        next_word_trg = self._trng.multinomial(pvals=next_probs_trg).argmax(1)
+        next_word_trgmult = self._trng.multinomial(pvals=next_probs_trgmult).argmax(1)
 
         # NOTE: We never use sampling and it incurs performance penalty
         # let's disable it for now
-        #next_word = self.trng.multinomial(pvals=next_probs).argmax(1)
+        #next_word = self._trng.multinomial(pvals=next_probs).argmax(1)
 
         # compile a function to do the whole thing above
         # next hidden state to be used

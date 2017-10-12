@@ -185,7 +185,7 @@ class Model(BaseModel):
 
         # Sample from the softmax distribution
         next_probs = tensor.exp(next_log_probs)
-        next_word = self.trng.multinomial(pvals=next_probs).argmax(1)
+        next_word = self._trng.multinomial(pvals=next_probs).argmax(1)
 
         # next word probability
         inps = [y, init_state]

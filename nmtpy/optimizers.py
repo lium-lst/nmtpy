@@ -36,7 +36,7 @@ class Optimizer(object, metaclass=ABCMeta):
 
     def set_trng(self, trng):
         """Save Theano RNG."""
-        self.trng = trng
+        self._trng = trng
 
     def set_gradient_noise(self, factor):
         """Set gradient noise factor."""
@@ -165,7 +165,7 @@ class Adam(Optimizer):
             if self.grad_noise_factor > 0:
                 # Sample normal noise from N(0, sqrt(factor/((1+t)**0.55))).
                 var = self.grad_noise_factor / (i_t**0.55)
-                noise = self.trng.normal(grad.shape, std=tensor.sqrt(stdev), dtype=FLOAT)
+                noise = self._trng.normal(grad.shape, std=tensor.sqrt(stdev), dtype=FLOAT)
                 grad += noise
 
             m_t = (self.b1 * m) + ((1. - self.b1) * grad)

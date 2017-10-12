@@ -61,7 +61,7 @@ class BaseModel(object, metaclass=ABCMeta):
         if seed == 0:
             # No seed given, randomly pick the seed
             seed = np.random.randint(2**29) + 1
-        self.trng = RandomStreams(seed)
+        self._trng = RandomStreams(seed)
 
     def set_dropout(self, val):
         """Set dropout indicator for activation scaling if dropout is available through configuration."""
@@ -186,7 +186,7 @@ class BaseModel(object, metaclass=ABCMeta):
 
         # Create optimizer, self.lrate is passed from nmt-train
         self.__opt = get_optimizer(self.optimizer)(lr0=self.lrate)
-        self.__opt.set_trng(self.trng)
+        self.__opt.set_trng(self._trng)
         #TODO: parameterize this! self.__opt.set_gradient_noise(0.1)
 
         # Get updates

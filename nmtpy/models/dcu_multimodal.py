@@ -376,12 +376,12 @@ class Model(Attention):
         # Source embeddings
         ###################
         # word embedding for forward rnn (source)
-        emb  = dropout(self.tparams['Wemb_enc'][x.flatten()], self.trng, self.emb_dropout, self.use_dropout)
+        emb  = dropout(self.tparams['Wemb_enc'][x.flatten()], self._trng, self.emb_dropout, self.use_dropout)
         emb  = emb.reshape([n_timesteps, n_samples, self.embedding_dim])
         forw = get_new_layer('gru')[1](self.tparams, emb, prefix='text_encoder', mask=x_mask, layernorm=self.layer_norm)
 
         # word embedding for backward rnn (source)
-        embr = dropout(self.tparams['Wemb_enc'][xr.flatten()], self.trng, self.emb_dropout, self.use_dropout)
+        embr = dropout(self.tparams['Wemb_enc'][xr.flatten()], self._trng, self.emb_dropout, self.use_dropout)
         embr = embr.reshape([n_timesteps, n_samples, self.embedding_dim])
         back = get_new_layer('gru')[1](self.tparams, embr, prefix='text_encoder_r', mask=xr_mask, layernorm=self.layer_norm)
 
@@ -391,7 +391,7 @@ class Model(Attention):
         # -> n_timesteps x n_samples x 2*rnn_dim
 
         # Apply dropout
-        text_ctx = dropout(text_ctx, self.trng, self.ctx_dropout, self.use_dropout)
+        text_ctx = dropout(text_ctx, self._trng, self.ctx_dropout, self.use_dropout)
 
         if self.init_cgru == 'text':
             # mean of the context (across time) will be used to initialize decoder rnn
@@ -464,7 +464,7 @@ class Model(Attention):
         logit_emb       = get_new_layer('ff')[1](self.tparams, emb_trg, prefix='ff_logit_emb', activ='linear')
 
         # Dropout
-        logit = dropout(tanh(logit_gru + logit_emb + logit_ctx_text + logit_ctx_img), self.trng, self.out_dropout, self.use_dropout)
+        logit = dropout(tanh(logit_gru + logit_emb + logit_ctx_text + logit_ctx_img), self._trng, self.out_dropout, self.use_dropout)
 
         if self.tied_emb is False:
             logit = get_new_layer('ff')[1](self.tparams, logit, prefix='ff_logit', activ='linear')
