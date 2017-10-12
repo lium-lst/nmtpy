@@ -27,6 +27,10 @@ class Model(BaseModel):
         # We call this once to setup dropout mechanism correctly
         self.set_dropout(False)
 
+        # Warn for older argument tied_trg_emb
+        if 'tied_trg_emb' in kwargs:
+            self._logger.info('WARNING: tied_trg_emb is replaced by tied_emb. Please refer to README.md.')
+
         ############################################################
         # All the kwargs arguments come from the configuration
         # file or as extra arguments given to nmt-train.
