@@ -65,9 +65,13 @@ class Model(AttentionFnmt):
         # fusion
         ########
         params = get_new_layer('ff')[0](params, prefix='ff_logit_gru'  , nin=self.rnn_dim       , nout=self.embedding_dim, scale=self.weight_init, ortho=False)
-        params = get_new_layer('ff')[0](params, prefix='ff_logit_prev' , nin=2*self.embedding_dim , nout=self.embedding_dim, scale=self.weight_init, ortho=False)
+        if self.sep_h2olayer:
+            params = get_new_layer('ff')[0](params, prefix='ff_logit_lem' ,  nin=self.embedding_dim , nout=self.embedding_dim, scale=self.weight_init, ortho=False)
+            params = get_new_layer('ff')[0](params, prefix='ff_logit_fact' , nin=self.embedding_dim , nout=self.embedding_dim, scale=self.weight_init, ortho=False)
+        else:
+            params = get_new_layer('ff')[0](params, prefix='ff_logit_prev' , nin=2*self.embedding_dim , nout=self.embedding_dim, scale=self.weight_init, ortho=False)
         params = get_new_layer('ff')[0](params, prefix='ff_logit_ctx'  , nin=self.ctx_dim       , nout=self.embedding_dim, scale=self.weight_init, ortho=False)
-        if self.tied_trg_emb is False:
+        if self.tied_emb is False:
             params = get_new_layer('ff')[0](params, prefix='ff_logit_trg'  , nin=self.embedding_dim , nout=self.n_words_trg1, scale=self.weight_init)
             params = get_new_layer('ff')[0](params, prefix='ff_logit_trgmult'  , nin=self.embedding_dim , nout=self.n_words_trg2, scale=self.weight_init)
 
@@ -144,10 +148,10 @@ class Model(AttentionFnmt):
         emb_fact_shifted = tensor.zeros_like(emb_fact)
         emb_fact_shifted = tensor.set_subtensor(emb_fact_shifted[1:], emb_fact[:-1])
         emb_fact = emb_fact_shifted
-    
+
         # Concat the 2 embeddings
         emb_prev = tensor.concatenate([emb_lem, emb_fact], axis=2)
-    
+
         # decoder - pass through the decoder conditional gru with attention
         proj = get_new_layer('gru_cond')[1](self.tparams, emb_prev,
                                             prefix='decoder',
@@ -167,14 +171,21 @@ class Model(AttentionFnmt):
         # compute word probabilities
         logit_gru  = get_new_layer('ff')[1](self.tparams, proj_h, prefix='ff_logit_gru', activ='linear')
         logit_ctx  = get_new_layer('ff')[1](self.tparams, ctxs, prefix='ff_logit_ctx', activ='linear')
-        logit_prev = get_new_layer('ff')[1](self.tparams, emb_prev, prefix='ff_logit_prev', activ='linear')
+        if self.sep_h2olayer:
+            logit_lem = get_new_layer('ff')[1](self.tparams, emb_lem, prefix='ff_logit_lem', activ='linear')
+            logit_fact = get_new_layer('ff')[1](self.tparams, emb_fact, prefix='ff_logit_fact', activ='linear')
 
-        logit = dropout(tanh(logit_gru + logit_prev + logit_ctx), self.trng, self.out_dropout, self.use_dropout)
+            logit1 = dropout(tanh(logit_gru + logit_lem + logit_ctx), self.trng, self.out_dropout, self.use_dropout)
+            logit2 = dropout(tanh(logit_gru + logit_fact + logit_ctx), self.trng, self.out_dropout, self.use_dropout)
+        else:
+            logit_prev = get_new_layer('ff')[1](self.tparams, emb_prev, prefix='ff_logit_prev', activ='linear')
 
-        if self.tied_trg_emb is False:
+            logit = dropout(tanh(logit_gru + logit_prev + logit_ctx), self.trng, self.out_dropout, self.use_dropout)
+
+        if self.tied_emb is False:
             logit_trg = get_new_layer('ff')[1](self.tparams, logit, prefix='ff_logit_trg', activ='linear')
             logit_trgmult = get_new_layer('ff')[1](self.tparams, logit, prefix='ff_logit_trgmult', activ='linear')
-        
+
         else:
             logit_trg = tensor.dot(logit, self.tparams['Wemb_dec_lem'].T)
             logit_trgmult = tensor.dot(logit, self.tparams['Wemb_dec_fact'].T)
@@ -257,7 +268,7 @@ class Model(AttentionFnmt):
         emb_fact = tensor.switch(y2[:, None] < 0,
                             tensor.alloc(0., 1, self.tparams['Wemb_dec_fact'].shape[1]),
                             self.tparams['Wemb_dec_fact'][y2])
-        
+
         # Concat the 2 embeddings
         emb_prev = tensor.concatenate([emb_lem,emb_fact], axis=1)
 
@@ -274,18 +285,34 @@ class Model(AttentionFnmt):
         ctxs = r[1]
         alphas = r[2]
 
-        logit_prev = get_new_layer('ff')[1](self.tparams, emb_prev,     prefix='ff_logit_prev',activ='linear')
+        if self.sep_h2olayer:
+            logit_lem  = get_new_layer('ff')[1](self.tparams, emb_lem,      prefix='ff_logit_lem' ,activ='linear')
+            logit_fact = get_new_layer('ff')[1](self.tparams, emb_fact,     prefix='ff_logit_fact',activ='linear')
+        else:
+            logit_prev = get_new_layer('ff')[1](self.tparams, emb_prev,     prefix='ff_logit_prev',activ='linear')
+
         logit_ctx  = get_new_layer('ff')[1](self.tparams, ctxs,         prefix='ff_logit_ctx', activ='linear')
         logit_gru  = get_new_layer('ff')[1](self.tparams, next_state,   prefix='ff_logit_gru', activ='linear')
 
-        logit = tanh(logit_gru + logit_prev + logit_ctx)
+        if self.sep_h2olayer:
+            logit1 = tanh(logit_gru + logit_lem + logit_ctx)
+            logit2 = tanh(logit_gru + logit_fact + logit_ctx)
 
-        if self.tied_trg_emb is False:
-            logit = get_new_layer('ff')[1](self.tparams, logit, prefix='ff_logit', activ='linear')
-            logit_trgmult = get_new_layer('ff')[1](self.tparams, logit, prefix='ff_logit_trgmult', activ='linear')
+            if self.tied_emb is False:
+                logit = get_new_layer('ff')[1](self.tparams, logit1, prefix='ff_logit', activ='linear')
+                logit_trgmult = get_new_layer('ff')[1](self.tparams, logit2, prefix='ff_logit_trgmult', activ='linear')
+            else:
+                logit_trg = tensor.dot(logit1, self.tparams['Wemb_dec_lem'].T)
+                logit_trgmult = tensor.dot(logit2, self.tparams['Wemb_dec_fact'].T)
         else:
-            logit_trg = tensor.dot(logit, self.tparams['Wemb_dec_lem'].T)
-            logit_trgmult = tensor.dot(logit, self.tparams['Wemb_dec_fact'].T)
+            logit = tanh(logit_gru + logit_prev + logit_ctx)
+
+            if self.tied_emb is False:
+                logit = get_new_layer('ff')[1](self.tparams, logit, prefix='ff_logit', activ='linear')
+                logit_trgmult = get_new_layer('ff')[1](self.tparams, logit, prefix='ff_logit_trgmult', activ='linear')
+            else:
+                logit_trg = tensor.dot(logit, self.tparams['Wemb_dec_lem'].T)
+                logit_trgmult = tensor.dot(logit, self.tparams['Wemb_dec_fact'].T)
 
         # compute the logsoftmax
         next_log_probs_trg = tensor.nnet.logsoftmax(logit_trg)
