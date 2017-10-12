@@ -15,24 +15,28 @@ from .basemodel import BaseModel
 
 class Model(BaseModel):
     def __init__(self, seed, logger, **kwargs):
-        # Call parent's init first
+        # Call parent's init to set all arguments as attributes
         super(Model, self).__init__(**kwargs)
 
         # Set logger
         self._logger = logger
 
-        ######################################################
+        # Set the seed of Theano RNG for dropout
+        self.set_trng(seed)
+
+        # We call this once to setup dropout mechanism correctly
+        self.set_dropout(False)
+
+        ############################################################
         # All the kwargs arguments come from the configuration
         # file or as extra arguments given to nmt-train.
-        ######################################################
+        ############################################################
 
         # Use GRU by default as encoder
         # NOTE: not tested at all with LSTM
         self.enc_type = kwargs.pop('enc_type', 'gru')
 
         # Do we apply layer normalization to GRU encoder?
-        # NOTE: layernorm in CGRU seems to degrade the performance
-        # so its explicitly disabled.
         self.layer_norm = kwargs.pop('layer_norm', False)
 
         # Shuffle mode (default: trglen (ordered by target len))
@@ -90,10 +94,7 @@ class Model(BaseModel):
             # Load them from pkl files
             self.trg_dict, trg_idict = load_dictionary(dicts['trg'])
 
-        ####################################################
-        # Limit shortlist sizes to replace
-        # out-of-shortlist tokens with <unk> in the iterator
-        ####################################################
+        # Limit shortlist sizes for <unk> replacement
         self.n_words_src = min(self.n_words_src, len(self.src_dict)) \
                 if self.n_words_src > 0 else len(self.src_dict)
         self.n_words_trg = min(self.n_words_trg, len(self.trg_dict)) \
@@ -102,7 +103,7 @@ class Model(BaseModel):
         # Sanity check for 3-way tying
         if self.tied_emb == '3way':
             # Check that given vocab files are the same
-            assert src_dict_file == trg_dict_file, \
+            assert dicts['src'] == dicts['trg'], \
                     "Vocabulary files should be the same for 3-way tying."
 
             assert self.n_words_src == self.n_words_trg, \
@@ -115,18 +116,16 @@ class Model(BaseModel):
         # to model checkpoints and snapshots as 'opts' dict.
         self.set_options(self.__dict__)
 
+        ############################################################
+        # The attributes below will not be saved into the .npz file!
+        ############################################################
+
         # No need to store inverted dictionaries so assign them here.
         self.trg_idict = trg_idict
         self.src_idict = src_idict
 
         # Context dimensionality is 2 times RNN since we use Bi-RNN
         self.ctx_dim = 2 * self.rnn_dim
-
-        # Set the seed of Theano RNG for dropout
-        self.set_trng(seed)
-
-        # We call this once to setup dropout mechanism correctly
-        self.set_dropout(False)
 
     @staticmethod
     def beam_search(inputs, f_inits, f_nexts, beam_size=12, maxlen=100, suppress_unks=False, **kwargs):
@@ -350,6 +349,7 @@ class Model(BaseModel):
         #########
         # decoder
         #########
+        # NOTE: layernorm in CGRU seems to degrade the performance so its explicitly disabled.
         params = get_new_layer('gru_cond')[0](params, prefix='decoder', nin=self.embedding_dim, dim=self.rnn_dim, dimctx=self.ctx_dim, scale=self.weight_init, layernorm=False)
 
         ########
@@ -429,6 +429,7 @@ class Model(BaseModel):
         emb = emb_shifted
 
         # decoder - pass through the decoder conditional gru with attention
+        # NOTE: layernorm in CGRU seems to degrade the performance so its explicitly disabled.
         r = get_new_layer('gru_cond')[1](self.tparams, emb,
                                          prefix='decoder',
                                          mask=y_mask, context=ctx,
@@ -523,6 +524,7 @@ class Model(BaseModel):
         # apply one step of conditional gru with attention
         # get the next hidden states
         # get the weighted averages of contexts for this target word y
+        # NOTE: layernorm in CGRU seems to degrade the performance so its explicitly disabled.
         r = get_new_layer('gru_cond')[1](self.tparams, emb,
                                          prefix='decoder',
                                          mask=None, context=ctx,

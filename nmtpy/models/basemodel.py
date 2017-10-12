@@ -21,6 +21,9 @@ class BaseModel(object, metaclass=ABCMeta):
         # Will be set when set_dropout is first called
         self._use_dropout   = None
 
+        # Theano TRNG
+        self._trng          = None
+
         # Input tensor lists
         self.inputs         = None
 
