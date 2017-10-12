@@ -31,31 +31,41 @@ class Model(BaseModel):
         self._logger = logger
 
         # Use GRU by default as encoder
-        self.enc_type = kwargs.get('enc_type', 'gru')
+        self.enc_type = kwargs.pop('enc_type', 'gru')
 
         # Do we apply layer normalization to GRU?
-        self.layer_norm = kwargs.get('layer_norm', False)
+        self.layer_norm = kwargs.pop('layer_norm', False)
 
         # Shuffle mode (default: No shuffle)
-        self.shuffle_mode = kwargs.get('shuffle_mode', 'simple')
+        self.shuffle_mode = kwargs.pop('shuffle_mode', 'simple')
 
         # How to initialize CGRU
-        self.init_cgru = kwargs.get('init_cgru', 'text')
+        self.init_cgru = kwargs.pop('init_cgru', 'text')
 
         # Get dropout parameters
         # Let's keep the defaults as 0 to not use dropout
         # You can adjust those from your conf files.
-        self.emb_dropout = kwargs.get('emb_dropout', 0.)
-        self.ctx_dropout = kwargs.get('ctx_dropout', 0.)
-        self.out_dropout = kwargs.get('out_dropout', 0.)
+        self.emb_dropout = kwargs.pop('emb_dropout', 0.)
+        self.ctx_dropout = kwargs.pop('ctx_dropout', 0.)
+        self.out_dropout = kwargs.pop('out_dropout', 0.)
 
         # Number of additional GRU encoders for source sentences
-        self.n_enc_layers  = kwargs.get('n_enc_layers' , 1)
+        self.n_enc_layers  = kwargs.pop('n_enc_layers' , 1)
 
         # Use a single embedding matrix for target words?
-        self.tied_trg_emb = kwargs.get('tied_trg_emb', False)
-        
-        self.factors = kwargs.get('factors', None)
+        # Shared embedding schemes
+        # False: disabled
+        # 2way:  Share output embeddings and input embeddings for target
+        #        eliminating ff_logit before softmax.
+        # 3way:  Share all embeddings in the network including source.
+        #        - Prepare single vocab pkl with nmt-build-dict -s option.
+        #        - Give the same pkl to both src and trg in model config.
+        self.tied_emb = kwargs.pop('tied_emb', False)
+
+        # Specify how to evaluate factors output
+        self.factors = kwargs.pop('factors', None)
+        # Separate hidden to output layer
+        self.sep_h2olayer = kwargs.pop('sep_h2olayer', False)
 
         # Load dictionaries
         if 'src_dict' in kwargs:
@@ -83,34 +93,6 @@ class Model(BaseModel):
         else:
             # Load them from pkl files
             self.trgfact_dict, trgfact_idict = load_dictionary(kwargs['dicts']['trg2'])
-
-        # Load constraints on factor predictions (Franck).
-        # The loaded file contains on each line elements
-        # separated by space. The 1st element is the lemma,
-        # all others are allowed factors for the lemma. Ex.:
-        # dog noun+singular noun+plural
-#        global fact_constraints
-#        fact_constraints = defaultdict(lambda: np.array(range(len(trgfact_idict))))
-#        try:
-            # Set the path to file with factor constraints
-            # dictionary with lemma and factors, each line lemma factor1 factor2 factor3
-#            const_file = open('/users/limsi_nmt/burlot/prog/wmt17/constraints.en2cx.bpe')
-            #const_file = open('/lium/buster1/garcia/workspace/scripts/latvian/constraints.lv')
-            #const_file = open('/lium/buster1/garcia/workspace/scripts/czech/constraints.cs')
-            #const_file = open('/lium/buster1/garcia/workspace/scripts/czech/constraints.bpe.cs')
-            #const_file = open('/lium/buster1/garcia/workspace/scripts/czech/constraints.noprev.bpe.cs')
-#            print("Constrained search", const_file)
-#        except FileNotFoundError:
-#            print("File with factor constraints not found: unconstrained search")
-#            const_file = []
-#        for line in const_file:
-#            line = line.split()
-#            try:
-#                lem = self.trg_dict[line[0]]
-#            except KeyError:
-#                continue
-#            facts = [self.trgfact_dict.get(f, self.trgfact_dict['<unk>']) for f in line[1:]]
-#            fact_constraints[lem] = np.array(facts)
 
         # Limit shortlist sizes
         self.n_words_src = min(self.n_words_src, len(self.src_dict)) \
@@ -158,7 +140,6 @@ class Model(BaseModel):
 
     @staticmethod
     def beam_search(inputs, f_inits, f_nexts, beam_size=12, maxlen=50, suppress_unks=False, fact_constraints=[], **kwargs):
-        #global fact_constraints
         # Final results and their scores
         final_sample_lem = []
         final_score_lem = []
@@ -173,10 +154,10 @@ class Model(BaseModel):
         hyp_scores  = np.zeros(1).astype(FLOAT)
         hyp_scores_lem  = np.zeros(1).astype(FLOAT)
         hyp_scores_fact  = np.zeros(1).astype(FLOAT)
-        
+
         # Number of models
         n_models        = len(f_inits)
-        
+
         # Ensembling-aware lists
         next_states     = [None] * n_models
         text_ctxs       = [None] * n_models
@@ -185,7 +166,7 @@ class Model(BaseModel):
         next_log_ps_lem = [None] * n_models
         next_log_ps_fact = [None] * n_models
         alphas          = [None] * n_models
-        
+
         for i, f_init in enumerate(f_inits):
             # Get next_state and initial contexts and save them
             # text_ctx: the set of textual annotations
@@ -214,24 +195,21 @@ class Model(BaseModel):
             # sequence is always the same regardless of the decoding process.
             # next_state's shape is (live_beam, rnn_dim)
 
-            # NOTE: next_state and titled_ctx were switch before ensamble
-#            next_log_p_lem, next_log_p_fact, next_state, alphas = f_nexts[0](*[next_w_lem, next_w_fact, next_state, tiled_ctx])
-            #next_log_p_lem, next_log_p_fact, next_state, alphas = f_nexts[0](*[next_w_lem, next_w_fact, tiled_ctx, next_state])
             # We do this for each model
             for m, f_next in enumerate(f_nexts):
                 next_log_ps_lem[m], next_log_ps_fact[m], next_states[m], alphas[m] = f_next(*([next_w_lem, next_w_fact, next_states[m], tiled_ctxs[m]] + aux_ctxs[m]))
-               
+
                 # NOTE: supress_unks does not work yet for factors
                 if suppress_unks:
                     next_log_ps_lem[m][:, 1] = -np.inf
 
-            # Compute sum of log_p's for the current n-gram hypotheses 
+            # Compute sum of log_p's for the current n-gram hypotheses
             cand_scores_lem = hyp_scores_lem[:, None] - sum(next_log_ps_lem)
             cand_scores_fact = hyp_scores_fact[:, None] - sum(next_log_ps_fact)
-            
+
             # Mean alphas for the mean model (n_models > 1)
             mean_alphas = sum(alphas) / n_models
-                
+
             # Beam search improvement for factors
             # Do combination for each new hyp
             cand_costs = []
@@ -245,7 +223,7 @@ class Model(BaseModel):
                 ranks_lem = cand_h_scores_lem.argpartition(live_beam-1)[:live_beam]
                 # Get their costs
                 costs_h_lem = cand_h_scores_lem[ranks_lem]
-                # All models should have the same shape for ensamble so we use just the first one 
+                # All models should have the same shape for ensamble so we use just the first one
                 word_indices_lem = ranks_lem % next_log_ps_lem[0].shape[1]
 
                 # get factor constraints for each lemma selected for the beam (Franck)
@@ -260,7 +238,7 @@ class Model(BaseModel):
                         ranks_fact = np.array(range(len(fact_constraints[l])))
                     costs_h_fact[l] = cost_constr_fact[ranks_fact]
                     word_indices_fact[l] = np.array([fact_constraints[l][n] for n in ranks_fact])
-                        
+
                 # Sum the logp's of lemmas and factors and keep the best ones
                 cand_h_costs = []
                 cand_h_costs_lem = []
@@ -383,7 +361,7 @@ class Model(BaseModel):
         final_score = []
         for b in range(beam_size):
             final_score.append(final_score_lem[b] + final_score_fact[b])
-        
+
         if not kwargs.get('get_att_alphas', False):
             # Don't send back alignments for nothing
             final_alignments = None
@@ -442,13 +420,10 @@ class Model(BaseModel):
     ###################################################################
     # TODO we could include common things in the following functions
     def init_params(self):
-
         pass
 
     def build(self):
-
         pass
 
     def build_sampler(self, **kwargs):
-
         pass
