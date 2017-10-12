@@ -19,7 +19,7 @@ class BaseModel(object, metaclass=ABCMeta):
         self.__dict__.update(kwargs)
 
         # Will be set when set_dropout is first called
-        self.use_dropout    = None
+        self._use_dropout   = None
 
         # Input tensor lists
         self.inputs         = None
@@ -65,10 +65,10 @@ class BaseModel(object, metaclass=ABCMeta):
 
     def set_dropout(self, val):
         """Set dropout indicator for activation scaling if dropout is available through configuration."""
-        if self.use_dropout is None:
-            self.use_dropout = theano.shared(np.float64(0.).astype(FLOAT))
+        if self._use_dropout is None:
+            self._use_dropout = theano.shared(np.float64(0.).astype(FLOAT))
         else:
-            self.use_dropout.set_value(float(val))
+            self._use_dropout.set_value(float(val))
 
     def update_lrate(self, lrate):
         """Update learning rate."""

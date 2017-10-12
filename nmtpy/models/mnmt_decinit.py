@@ -126,13 +126,13 @@ class Model(Attention):
 
         # word embedding for forward rnn (source)
         emb = dropout(self.tparams[self.src_emb_name][x.flatten()],
-                      self._trng, self.emb_dropout, self.use_dropout)
+                      self._trng, self.emb_dropout, self._use_dropout)
         emb = emb.reshape([n_timesteps, n_samples, self.embedding_dim])
         proj = get_new_layer(self.enc_type)[1](self.tparams, emb, prefix='encoder', mask=x_mask, layernorm=self.layer_norm)
 
         # word embedding for backward rnn (source)
         embr = dropout(self.tparams[self.src_emb_name][xr.flatten()],
-                       self._trng, self.emb_dropout, self.use_dropout)
+                       self._trng, self.emb_dropout, self._use_dropout)
         embr = embr.reshape([n_timesteps, n_samples, self.embedding_dim])
         projr = get_new_layer(self.enc_type)[1](self.tparams, embr, prefix='encoder_r', mask=xr_mask, layernorm=self.layer_norm)
 
@@ -145,7 +145,7 @@ class Model(Attention):
                                                   mask=x_mask, layernorm=self.layer_norm)
 
         # Apply dropout
-        ctx = dropout(ctx[0], self._trng, self.ctx_dropout, self.use_dropout)
+        ctx = dropout(ctx[0], self._trng, self.ctx_dropout, self._use_dropout)
 
         # Decoder initialized with pool5 features
         init_state = get_new_layer('ff')[1](self.tparams, x_img, prefix='ff_imginit', activ='tanh')
@@ -177,7 +177,7 @@ class Model(Attention):
         logit_ctx  = get_new_layer('ff')[1](self.tparams, ctxs, prefix='ff_logit_ctx', activ='linear')
         logit_prev = get_new_layer('ff')[1](self.tparams, emb, prefix='ff_logit_prev', activ='linear')
 
-        logit = dropout(tanh(logit_gru + logit_prev + logit_ctx), self._trng, self.out_dropout, self.use_dropout)
+        logit = dropout(tanh(logit_gru + logit_prev + logit_ctx), self._trng, self.out_dropout, self._use_dropout)
 
         if self.tied_emb is False:
             logit = get_new_layer('ff')[1](self.tparams, logit, prefix='ff_logit', activ='linear')
