@@ -29,6 +29,16 @@ If you use **nmtpy**, you may want to cite the following [paper](https://ufal.mf
 
 ----
 
+# List of Important Recent Changes
+
+### Factored NMT
+
+ - `attention_factors_seplogits.py` is removed and its functionality is added to `attention_factors` model as a configuration switch: `sep_h2olayer: True`.
+ 
+### NMT
+ - `tied_trg_emb: True/False` is replaced with `tied_emb: False/2way/3way` to also support the sharing of "all" embeddings throughout the network.
+ 
+
 # Introduction
 
 **nmtpy** is a suite of Python tools, primarily based on the starter code provided in [dl4mt-tutorial](https://github.com/nyu-dl/dl4mt-tutorial) for training neural machine translation networks using Theano. The basic motivation behind forking **dl4mt-tutorial** was to create a framework where it would be easy to implement a new model by just copying and modifying an existing model class (or even inheriting from it and overriding some of its methods).
