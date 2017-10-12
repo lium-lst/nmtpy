@@ -29,11 +29,9 @@ If you use **nmtpy**, you may want to cite the following [paper](https://ufal.mf
 
 ----
 
-**nmtpy** is a suite of Python tools, primarily based on the starter code provided in [dl4mt-tutorial](https://github.com/nyu-dl/dl4mt-tutorial) for training neural machine translation networks using Theano.
+# Introduction
 
-The basic motivation behind forking **dl4mt-tutorial** was to create a framework where it would be
-easy to implement a new model by just copying and modifying an existing model class (or even
-inheriting from it and overriding some of its methods).
+**nmtpy** is a suite of Python tools, primarily based on the starter code provided in [dl4mt-tutorial](https://github.com/nyu-dl/dl4mt-tutorial) for training neural machine translation networks using Theano. The basic motivation behind forking **dl4mt-tutorial** was to create a framework where it would be easy to implement a new model by just copying and modifying an existing model class (or even inheriting from it and overriding some of its methods).
 
 To achieve this purpose, **nmtpy** tries to completely isolate training loop, beam search,
 iteration and model definition:
@@ -46,20 +44,15 @@ iteration and model definition:
 
 A non-exhaustive list of differences between **nmtpy** and **dl4mt-tutorial** is as follows:
 
-#### General/API
   - No shell script, everything is in Python
   - Overhaul object-oriented refactoring of the code: clear separation of API and scripts that interface with the API
   - INI style configuration files to define everything regarding a training experiment
   - Transparent cleanup mechanism to kill stale processes, remove temporary files
   - Simultaneous logging of training details to stdout and log file
-
-#### Training/Inference
   - Supports out-of-the-box BLEU, METEOR and COCO eval metrics
-  - Includes [subword-nmt](https://github.com/rsennrich/subword-nmt) utilities for training and applying BPE model
-  - Plugin-like text filters for hypothesis post-processing (Example: BPE, Compound)
-  - Early-stopping and checkpointing based on perplexity, BLEU or METEOR
-    - `nmt-train` automatically calls `nmt-translate` during validation and returns the result back
-    - Ability to add new metrics easily
+  - Includes [subword-nmt](https://github.com/rsennrich/subword-nmt) utilities for training and applying BPE model (NOTE: This may change as the upstream subword-nmt moves forward as well.)
+  - Plugin-like text filters for hypothesis post-processing (Example: BPE, Compound, Char2Words for Char-NMT)
+  - Early-stopping and checkpointing based on perplexity, BLEU or METEOR (Ability to add new metrics easily)
   - Single `.npz` file to store everything about a training experiment
   - Automatic free GPU selection and reservation using `nvidia-smi`
   - Shuffling support between epochs:
@@ -68,26 +61,25 @@ A non-exhaustive list of differences between **nmtpy** and **dl4mt-tutorial** is
   - Improved parallel translation decoding on CPU
   - Forced decoding i.e. rescoring using NMT
   - Export decoding informations into `json` for further visualization of attention coefficients
-
-#### Deep Learning
   - Improved numerical stability and reproducibility
   - Glorot/Xavier, He, Orthogonal weight initializations
-  - Efficient SGD, Adadelta, RMSProp and ADAM
-    - Single forward/backward theano function without intermediate variables
+  - Efficient SGD, Adadelta, RMSProp and ADAM: Single forward/backward theano function without intermediate variables
   - Ability to stop updating a set of weights by recompiling optimizer
   - Several recurrent blocks:
     - GRU, Conditional GRU (CGRU) and LSTM
     - Multimodal attentive CGRU variants
   - [Layer Normalization](https://github.com/ryankiros/layer-norm) support for GRU
-  - [Tied target embeddings](https://arxiv.org/abs/1608.05859)
+  - 2-way or 3-way [tied target embeddings](https://arxiv.org/abs/1608.05859)
   - Simple/Non-recurrent Dropout, L2 weight decay
   - Training and validation loss normalization for comparable perplexities
   - Initialization of a model with a pretrained NMT for further finetuning
 
 ## Models
 
+It is advised to check the actual model implementations for the most up-to-date informations as what is written may become outdated.
+
 ### Attentional NMT: `attention.py`
-This is the basic shallow attention based NMT from `dl4mt-tutorial` improved in different ways:
+This is the basic attention based NMT from `dl4mt-tutorial` improved in different ways:
   - 3 forward dropout layers after source embeddings, source context and before softmax managed by the configuration parameters `emb_dropout, ctx_dropout, out_dropout`.
   - Layer normalization for source encoder (`layer_norm:True|False`)
   - Tied embeddings (`tied_emb:False|2way|3way`)
@@ -145,6 +137,8 @@ as it needs to be installed as well. To avoid re-installing each time, you can u
 
 ## Ensuring Reproducibility in Theano
 
+(Update: The upcoming Theano v0.10 includes a configuration option `deterministic = more` that will obsolete the below patch.) 
+
 When we started to work on **dl4mt-tutorial**, we noticed an annoying reproducibility problem where
 multiple runs of the same experiment (same seed, same machine, same GPU) were not producing exactly
 the same training and validation losses after a few iterations.
@@ -166,10 +160,12 @@ device = gpu0
 floatX = float32
 # Keep theano compilation in RAM if you have a 7/24 available server
 base_compiledir=/tmp/theano-%(user)s
+# For Theano >= 0.10, if you want exact same results for each run
+# with same seed
+deterministic=more
 
 [cuda]
-# CUDA 8.0 is better
-root = /opt/cuda-7.5
+root = /opt/cuda-8.0
 
 [dnn]
 # Make sure you use CuDNN as well
