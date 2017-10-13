@@ -177,18 +177,26 @@ class Model(AttentionFnmt):
 
             logit1 = dropout(tanh(logit_gru + logit_lem + logit_ctx), self._trng, self.out_dropout, self._use_dropout)
             logit2 = dropout(tanh(logit_gru + logit_fact + logit_ctx), self._trng, self.out_dropout, self._use_dropout)
+            
+            if self.tied_emb is False:
+                logit_trg = get_new_layer('ff')[1](self.tparams, logit1, prefix='ff_logit_trg', activ='linear')
+                logit_trgmult = get_new_layer('ff')[1](self.tparams, logit2, prefix='ff_logit_trgmult', activ='linear')
+        
+            else:
+                logit_trg = tensor.dot(logit1, self.tparams['Wemb_dec_lem'].T)
+                logit_trgmult = tensor.dot(logit2, self.tparams['Wemb_dec_fact'].T)
         else:
             logit_prev = get_new_layer('ff')[1](self.tparams, emb_prev, prefix='ff_logit_prev', activ='linear')
 
             logit = dropout(tanh(logit_gru + logit_prev + logit_ctx), self._trng, self.out_dropout, self._use_dropout)
 
-        if self.tied_emb is False:
-            logit_trg = get_new_layer('ff')[1](self.tparams, logit, prefix='ff_logit_trg', activ='linear')
-            logit_trgmult = get_new_layer('ff')[1](self.tparams, logit, prefix='ff_logit_trgmult', activ='linear')
+            if self.tied_emb is False:
+                logit_trg = get_new_layer('ff')[1](self.tparams, logit, prefix='ff_logit_trg', activ='linear')
+                logit_trgmult = get_new_layer('ff')[1](self.tparams, logit, prefix='ff_logit_trgmult', activ='linear')
 
-        else:
-            logit_trg = tensor.dot(logit, self.tparams['Wemb_dec_lem'].T)
-            logit_trgmult = tensor.dot(logit, self.tparams['Wemb_dec_fact'].T)
+            else:
+                logit_trg = tensor.dot(logit, self.tparams['Wemb_dec_lem'].T)
+                logit_trgmult = tensor.dot(logit, self.tparams['Wemb_dec_fact'].T)
 
         logit_trg_shp = logit_trg.shape
         logit_trgmult_shp = logit_trgmult.shape
