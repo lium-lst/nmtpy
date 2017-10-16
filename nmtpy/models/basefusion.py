@@ -56,7 +56,7 @@ class Model(Attention):
                 trgdict=self.trg_dict,
                 srcdict=self.src_dict,
                 n_words_trg=self.n_words_trg, n_words_src=self.n_words_src,
-                mode=self.options.get('data_mode', 'pairs'))
+                mode=self._options.get('data_mode', 'pairs'))
         self.train_iterator.read()
         self.load_valid_data()
 

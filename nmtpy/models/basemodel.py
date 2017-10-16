@@ -52,12 +52,12 @@ class BaseModel(object, metaclass=ABCMeta):
         pass
 
     def set_options(self, optdict):
-        """Filter out None's and '__[a-zA-Z]' then store into self.options."""
-        self.options = OrderedDict()
+        """Filter out None's and '__[a-zA-Z]' then store into self._options."""
+        self._options = OrderedDict()
         for k,v in optdict.items():
             # Don't keep model attributes with _ prefix
             if v is not None and not k.startswith('_'):
-                self.options[k] = v
+                self._options[k] = v
 
     def set_trng(self, seed):
         """Set the seed for Theano RNG."""
@@ -84,9 +84,9 @@ class BaseModel(object, metaclass=ABCMeta):
     def save(self, fname):
         """Save model parameters as .npz."""
         if self.tparams is not None:
-            np.savez(fname, tparams=unzip(self.tparams), opts=self.options)
+            np.savez(fname, tparams=unzip(self.tparams), opts=self._options)
         else:
-            np.savez(fname, opts=self.options)
+            np.savez(fname, opts=self._options)
 
     def load(self, params):
         """Restore .npz checkpoint file into model."""
