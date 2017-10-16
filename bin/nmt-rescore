@@ -87,7 +87,7 @@ if __name__ == "__main__":
     log.info("%d models given for rescoring" % len(args.models))
 
     # Load model options from first model
-    model_options = dict(np.load(args.models[0])['opts'].tolist())
+    model_options = get_model_options(args.models[0])
 
     # Import the module
     Model = importlib.import_module("nmtpy.models.%s" % model_options['model_type']).Model
@@ -138,7 +138,7 @@ if __name__ == "__main__":
 
         # Load model weights for anything except first one (hacky)
         if idx > 0:
-            model.update_shared_variables(np.load(modelfile)['tparams'].tolist())
+            model.update_shared_variables(get_param_dict(modelfile))
 
         for i, data in enumerate(iterator):
             norm = data['y_mask'].sum(0)

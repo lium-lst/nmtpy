@@ -53,10 +53,6 @@ def unzip(zipped):
 def pp(prefix, name):
     return '%s_%s' % (prefix, name)
 
-def get_param_dict(path):
-    """Fetch parameter dictionary from .npz file."""
-    return np.load(path)['tparams'].tolist()
-
 # orthogonal initialization for weights
 # Saxe, Andrew M., James L. McClelland, and Surya Ganguli.
 # "Exact solutions to the nonlinear dynamics of learning in deep

@@ -59,7 +59,7 @@ class Tester(object):
         self.processes = [None] * self.n_jobs
 
     def set_model_options(self):
-        model_options = dict(np.load(self.model_file)['opts'].tolist())
+        model_options = get_model_options(self.model_file)
 
         # Import the module
         self.__class = importlib.import_module("nmtpy.models.%s" % model_options['model_type']).Model

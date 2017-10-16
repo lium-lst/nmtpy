@@ -8,8 +8,8 @@ import theano.tensor as tensor
 from theano.sandbox.rng_mrg import MRG_RandomStreams as RandomStreams
 
 import numpy as np
-from ..nmtutils import unzip, get_param_dict
-from ..sysutils import readable_size, get_temp_file, get_valid_evaluation
+from ..nmtutils import unzip
+from ..sysutils import readable_size, get_temp_file, get_param_dict, get_valid_evaluation
 from ..defaults import INT, FLOAT
 from ..optimizers import get_optimizer
 
@@ -83,18 +83,19 @@ class BaseModel(object, metaclass=ABCMeta):
 
     def save(self, fname):
         """Save model parameters as .npz."""
+        kwargs = OrderedDict()
+        kwargs['opts'] = self._options
         if self.tparams is not None:
-            np.savez(fname, tparams=unzip(self.tparams), opts=self._options)
-        else:
-            np.savez(fname, opts=self._options)
+            kwargs.update(unzip(self.tparams))
+
+        # Save each param as a separate argument into npz
+        np.savez(fname, **kwargs)
 
     def load(self, params):
         """Restore .npz checkpoint file into model."""
         self.tparams = OrderedDict()
 
-        if isinstance(params, str):
-            # Filename, load from it
-            params = get_param_dict(params)
+        params = get_param_dict(params)
 
         for k,v in params.items():
             self.tparams[k] = theano.shared(v.astype(FLOAT), name=k)

@@ -8,6 +8,10 @@ import lzma
 import tempfile
 import subprocess
 
+from collections import OrderedDict
+
+import numpy as np
+
 from . import cleanup
 
 def print_summary(train_args, model_args, print_func=None):
@@ -293,9 +297,16 @@ def get_next_runid(save_path, exp_id):
 
     return i
 
-def get_model_options(optdict):
+def get_model_options(handle):
     """Get model options by maintaining backward compatibility."""
-    optdict = optdict.tolist()
+    if isinstance(handle, np.lib.npyio.NpzFile):
+        optdict = handle['opts'].tolist()
+    elif isinstance(handle, str):
+        optdict = np.load(path)['opts'].tolist()
+    elif isinstance(handle, np.ndarray):
+        optdict = handle.tolist()
+    elif isinstance(handle, dict):
+        optdict = handle
 
     # tied_trg_emb, i.e. renamed to tied_emb
     if 'tied_trg_emb' in optdict and 'tied_emb' not in optdict:
@@ -303,3 +314,20 @@ def get_model_options(optdict):
         del optdict['tied_trg_emb']
 
     return optdict
+
+def get_param_dict(handle):
+    """Fetch parameter dictionary from .npz file."""
+    if isinstance(handle, np.lib.npyio.NpzFile):
+        npz = handle
+    elif isinstance(handle, str):
+        npz = np.load(path)
+    elif isinstance(handle, dict):
+        return handle
+
+    if 'tparams' in npz.files:
+        # Old version of storing things
+        return npz['tparams'].tolist()
+    else:
+        params = OrderedDict(npz.iteritems())
+        del params['opts']
+        return params

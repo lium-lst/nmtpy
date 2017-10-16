@@ -6,6 +6,9 @@ import sys
 import numpy as np
 
 from ast import literal_eval
+from collections import OrderedDict
+
+from nmtpy.sysutils import *
 
 os.environ['THEANO_FLAGS'] = 'device=cpu'
 
@@ -31,8 +34,10 @@ if __name__ == '__main__':
     for npzf in files:
         # Load the file
         npz = np.load(npzf)
+
         # Get the dict
-        opts = npz['opts'].tolist()
+        opts = get_model_options(npz)
+        params = get_param_dict(npz)
 
         newfilename = npzf
 
@@ -46,4 +51,7 @@ if __name__ == '__main__':
                 newfilename = '%s-%s' % (value, rest)
 
         print('Writing %s' % newfilename)
-        np.savez(newfilename, tparams=npz['tparams'], opts=opts)
+
+        params['opts'] = opts
+
+        np.savez(newfilename, **params)

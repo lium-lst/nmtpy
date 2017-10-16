@@ -116,7 +116,7 @@ class Translator(object):
             log.info('Initializing model %s' % os.path.basename(mfile))
 
             # Fetch options
-            model_options = dict(np.load(mfile)['opts'].tolist())
+            model_options = get_model_options(mfile)
 
             # Import the module
             self.__class = importlib.import_module("nmtpy.models.%s" % model_options['model_type']).Model

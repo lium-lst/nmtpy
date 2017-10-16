@@ -7,7 +7,7 @@ import argparse
 
 import numpy as np
 
-from nmtpy.nmtutils import get_param_dict
+from nmtpy.sysutils import get_param_dict
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(prog='nmt-extract')

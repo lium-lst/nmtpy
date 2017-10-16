@@ -120,7 +120,7 @@ class Translator(object):
             data = np.load(mfile)
 
             # Fetch options
-            model_options = get_model_options(data['opts'])
+            model_options = get_model_options(data)
 
             # Import the module
             self.__class = importlib.import_module("nmtpy.models.%s" % model_options['model_type']).Model
@@ -129,7 +129,7 @@ class Translator(object):
             model = self.__class(seed=self.seed, logger=None, **model_options)
 
             # Load weights from the already loaded file
-            model.load(data['tparams'].tolist())
+            model.load(data)
 
             model.set_dropout(False)
             model.build_sampler()
