@@ -32,7 +32,8 @@ class Model(Attention):
                 imgfile=self.data['train_img'],
                 trgdict=self.trg_dict,
                 srcdict=self.src_dict,
-                n_words_trg=self.n_words_trg, n_words_src=self.n_words_src)
+                n_words_trg=self.n_words_trg, n_words_src=self.n_words_src,
+                shuffle_mode='trglen')
         self.train_iterator.read()
         self.load_valid_data()
 
