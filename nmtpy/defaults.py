@@ -31,4 +31,5 @@ TRAIN_DEFAULTS = {
         'snapshot_freq':      0,              # Checkpoint frequency for resuming in terms of number of iterations
         'disp_freq':          10,             # Display training statistics after each disp_freq minibatches
         'save_best_n':        4,              # Always keep a set of 4 best validation models on disk
+        'save_timestamp':     False,          # Creates a subfolder for each experiment with timestamp prefix
         }

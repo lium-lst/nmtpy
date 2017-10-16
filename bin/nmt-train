@@ -135,6 +135,9 @@ if __name__ == '__main__':
     # Create a folder named as conf file
     folder_name = os.path.splitext(os.path.basename(cargs['config']))[0]
     model_args.save_path = os.path.join(model_args.save_path, folder_name)
+    if train_args.save_timestamp:
+        tstamp = time.strftime('%d%m%Y-%H_%m_%S')
+        model_args.save_path = os.path.join(model_args.save_path, tstamp)
     ensure_dirs([model_args.save_path])
 
     # Create a unique experience identifier string
