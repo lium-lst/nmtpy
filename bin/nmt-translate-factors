@@ -123,7 +123,7 @@ class Translator(object):
 
             # Create the model
             model = self.__class(seed=self.seed, logger=None, **model_options)
-            
+
             # Load weights from the already loaded file
             model.load(mfile)
 
@@ -153,7 +153,7 @@ class Translator(object):
         # NOTE: Target dictionary should be the same for each model during ensembling
         self.trg_idict = self.models[0].trg_idict
         self.trgfact_idict = self.models[0].trgfact_idict
-            
+
         # Set contrained decoding
         # Load constraints on factor predictions (Franck).
         # The loaded file contains on each line elements
