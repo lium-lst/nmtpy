@@ -58,19 +58,19 @@ class ServerRequestHandler(BaseHTTPRequestHandler):
             length=int(self.headers.get('Content-Length'))
             source = self.rfile.read(length).decode('utf-8')
             log.info(" ".join(map(str, time.localtime()))+" Got a translation request: "+source)
-            
+
             # Launch translation
             target=translator.translate(source.split()+["<eos>"])
-            
+
             # Log response
             log.info(" ".join(map(str, time.localtime()))+" Translated sentence: "+target)
-            
+
             # Send response
             self.send_response(200) # Code 200: success
             self.send_header("Content-Type","text/plain")
             self.end_headers()
             self.wfile.write(target.encode('utf8'))
-        
+
         except Exception as e:
             t=traceback.format_exc()
             log.info(" ".join(map(str, time.localtime()))+" ERROR: "+str(e))
@@ -154,7 +154,7 @@ class Translator(object):
         self.f_inits     = [m.f_init for m in self.models]
         self.f_nexts     = [m.f_next for m in self.models]
 
-    def translate(self, sample_text): 
+    def translate(self, sample_text):
         beam_search = self.models[0].beam_search
 
         # Convert text to idx
@@ -186,7 +186,7 @@ class Translator(object):
         # Prepare and dump
         self.hyps = [self.trg_idict.get(w, 1) for w in trans[0][:-1]]
         hyps = " ".join(self.hyps)
-         
+
         # Send response back
         return hyps
 
