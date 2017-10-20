@@ -31,6 +31,8 @@ If you use **nmtpy**, you may want to cite the following [paper](https://ufal.mf
 
 # List of Important Recent Changes
 
+- Model checkpoints were unnecessarily larger by 30% because of a storing format issue. This is fixed now by 0721f34924d23b0.
+
 ### Factored NMT
 
  - `attention_factors_seplogits.py` is removed and its functionality is added to `attention_factors` model as a configuration switch: `sep_h2olayer: True`.
