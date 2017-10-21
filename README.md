@@ -31,7 +31,7 @@ If you use **nmtpy**, you may want to cite the following [paper](https://ufal.mf
 
 # List of Important Recent Changes
 
-- Model checkpoints were unnecessarily larger by 30% because of a storing format issue. This is fixed now by 0721f34924d23b0.
+- Model checkpoints were unnecessarily larger by 30% because of a storing format issue. This is fixed now by https://github.com/lium-lst/nmtpy/commit/0721f34924d23b02caca52e8c3fcbcaafbb4ef41. 
 
 ### Factored NMT
 
