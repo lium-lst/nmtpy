@@ -23,6 +23,8 @@ if __name__ == '__main__':
     # to fix problems of inference.
 
     for fname in sys.argv[1:]:
+        do_write = False
+
         # Open the file
         npzf = np.load(fname)
 
@@ -32,6 +34,7 @@ if __name__ == '__main__':
 
         if 'tparams' in npzf.files:
             # Old format of saving parameters
+            do_write = True
             tparams = npzf['tparams'].tolist()
         else:
             for key in npzf.files:
@@ -48,6 +51,7 @@ if __name__ == '__main__':
 
         # attention_singledict is now included in main model
         if opts['model_type'] == 'attention_singledict':
+            do_write = True
             opts['model_type'] = 'attention'
             opts['tied_emb'] = '3way'
             del opts['tied_trg_emb']
@@ -57,6 +61,8 @@ if __name__ == '__main__':
             if 'tied_trg_emb' in opts:
                 opts['tied_emb'] = '2way'
                 del opts['tied_trg_emb']
+                do_write = True
 
-        print('Writing %s' % new_fname)
-        np.savez(new_fname, **tparams)
+        if do_write:
+            print('Writing %s' % new_fname)
+            np.savez(new_fname, **tparams)
