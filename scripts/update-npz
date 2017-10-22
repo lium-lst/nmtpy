@@ -1,0 +1,62 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+
+import os
+import sys
+import numpy as np
+
+from ast import literal_eval
+from collections import OrderedDict
+
+from nmtpy.sysutils import *
+
+os.environ['THEANO_FLAGS'] = 'device=cpu'
+
+def parse_value(value):
+    try:
+        return literal_eval(value)
+    except ValueError as ve:
+        return value
+
+if __name__ == '__main__':
+    # Update nmtpy model checkpoints to recent format
+    # to fix problems of inference.
+
+    for fname in sys.argv[1:]:
+        # Open the file
+        npzf = np.load(fname)
+
+        # Get option dictionary
+        opts = npzf['opts'].tolist()
+        tparams = OrderedDict()
+
+        if 'tparams' in npzf.files:
+            # Old format of saving parameters
+            tparams = npzf['tparams'].tolist()
+        else:
+            for key in npzf.files:
+                if key != 'opts':
+                    tparams[key] = npzf[key]
+
+        tparams['opts'] = opts
+
+        # Close the file
+        npzf.close()
+
+        new_fname = fname
+        ###############
+
+        # attention_singledict is now included in main model
+        if opts['model_type'] == 'attention_singledict':
+            opts['model_type'] = 'attention'
+            opts['tied_emb'] = '3way'
+            del opts['tied_trg_emb']
+
+            new_fname = fname.replace('attention_singledict', 'attention')
+        else:
+            if 'tied_trg_emb' in opts:
+                opts['tied_emb'] = '2way'
+                del opts['tied_trg_emb']
+
+        print('Writing %s' % new_fname)
+        np.savez(new_fname, **tparams)
