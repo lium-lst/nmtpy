@@ -1,8 +1,5 @@
 #!/usr/bin/env python
 import os
-import re
-import sys
-import random
 import string
 import pickle
 import argparse
