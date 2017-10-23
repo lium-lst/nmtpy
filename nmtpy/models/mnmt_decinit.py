@@ -97,8 +97,9 @@ class Model(Attention):
         # fusion
         ########
         params = get_new_layer('ff')[0](params, prefix='ff_logit_gru'  , nin=self.rnn_dim       , nout=self.embedding_dim, scale=self.weight_init, ortho=False)
-        params = get_new_layer('ff')[0](params, prefix='ff_logit_prev' , nin=self.embedding_dim , nout=self.embedding_dim, scale=self.weight_init, ortho=False)
-        params = get_new_layer('ff')[0](params, prefix='ff_logit_ctx'  , nin=self.ctx_dim       , nout=self.embedding_dim, scale=self.weight_init, ortho=False)
+        if not self.simple_output:
+            params = get_new_layer('ff')[0](params, prefix='ff_logit_prev' , nin=self.embedding_dim , nout=self.embedding_dim, scale=self.weight_init, ortho=False)
+            params = get_new_layer('ff')[0](params, prefix='ff_logit_ctx'  , nin=self.ctx_dim       , nout=self.embedding_dim, scale=self.weight_init, ortho=False)
         if self.tied_emb is False:
             params = get_new_layer('ff')[0](params, prefix='ff_logit'  , nin=self.embedding_dim , nout=self.n_words_trg, scale=self.weight_init)
 
@@ -174,11 +175,13 @@ class Model(Attention):
         next_state, ctxs, alphas = r
 
         # compute word probabilities
-        logit_gru  = get_new_layer('ff')[1](self.tparams, next_state, prefix='ff_logit_gru', activ='linear')
-        logit_ctx  = get_new_layer('ff')[1](self.tparams, ctxs, prefix='ff_logit_ctx', activ='linear')
-        logit_prev = get_new_layer('ff')[1](self.tparams, emb, prefix='ff_logit_prev', activ='linear')
+        logit = get_new_layer('ff')[1](self.tparams, next_state, prefix='ff_logit_gru', activ='linear')
 
-        logit = dropout(tanh(logit_gru + logit_prev + logit_ctx), self._trng, self.out_dropout, self._use_dropout)
+        if not self.simple_output:
+            logit += get_new_layer('ff')[1](self.tparams, ctxs, prefix='ff_logit_ctx', activ='linear')
+            logit += get_new_layer('ff')[1](self.tparams, emb, prefix='ff_logit_prev', activ='linear')
+
+        logit = dropout(tanh(logit), self._trng, self.out_dropout, self._use_dropout)
 
         if self.tied_emb is False:
             logit = get_new_layer('ff')[1](self.tparams, logit, prefix='ff_logit', activ='linear')
@@ -260,11 +263,13 @@ class Model(Attention):
 
         next_state, ctxs, alphas = r
 
-        logit_prev = get_new_layer('ff')[1](self.tparams, emb,          prefix='ff_logit_prev',activ='linear')
-        logit_ctx  = get_new_layer('ff')[1](self.tparams, ctxs,         prefix='ff_logit_ctx', activ='linear')
-        logit_gru  = get_new_layer('ff')[1](self.tparams, next_state,   prefix='ff_logit_gru', activ='linear')
+        logit = get_new_layer('ff')[1](self.tparams, next_state, prefix='ff_logit_gru', activ='linear')
 
-        logit = tanh(logit_gru + logit_prev + logit_ctx)
+        if not self.simple_output:
+            logit += get_new_layer('ff')[1](self.tparams, emb, prefix='ff_logit_prev',activ='linear')
+            logit += get_new_layer('ff')[1](self.tparams, ctxs,prefix='ff_logit_ctx', activ='linear')
+
+        logit = tanh(logit)
 
         if self.tied_emb is False:
             logit = get_new_layer('ff')[1](self.tparams, logit, prefix='ff_logit', activ='linear')
