@@ -306,7 +306,7 @@ def get_model_options(handle):
     if isinstance(handle, np.lib.npyio.NpzFile):
         optdict = handle['opts'].tolist()
     elif isinstance(handle, str):
-        optdict = np.load(path)['opts'].tolist()
+        optdict = np.load(handle)['opts'].tolist()
     elif isinstance(handle, np.ndarray):
         optdict = handle.tolist()
     elif isinstance(handle, dict):
@@ -324,7 +324,7 @@ def get_param_dict(handle):
     if isinstance(handle, np.lib.npyio.NpzFile):
         npz = handle
     elif isinstance(handle, str):
-        npz = np.load(path)
+        npz = np.load(handle)
     elif isinstance(handle, dict):
         return handle
 
