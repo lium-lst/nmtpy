@@ -307,7 +307,7 @@ class Model(AttentionFnmt):
             logit2 = tanh(logit_gru + logit_fact + logit_ctx)
 
             if self.tied_emb is False:
-                logit = get_new_layer('ff')[1](self.tparams, logit1, prefix='ff_logit', activ='linear')
+                logit_trg = get_new_layer('ff')[1](self.tparams, logit1, prefix='ff_logit', activ='linear')
                 logit_trgmult = get_new_layer('ff')[1](self.tparams, logit2, prefix='ff_logit_trgmult', activ='linear')
             else:
                 logit_trg = tensor.dot(logit1, self.tparams['Wemb_dec_lem'].T)
@@ -316,7 +316,7 @@ class Model(AttentionFnmt):
             logit = tanh(logit_gru + logit_prev + logit_ctx)
 
             if self.tied_emb is False:
-                logit = get_new_layer('ff')[1](self.tparams, logit, prefix='ff_logit', activ='linear')
+                logit_trg = get_new_layer('ff')[1](self.tparams, logit, prefix='ff_logit', activ='linear')
                 logit_trgmult = get_new_layer('ff')[1](self.tparams, logit, prefix='ff_logit_trgmult', activ='linear')
             else:
                 logit_trg = tensor.dot(logit, self.tparams['Wemb_dec_lem'].T)
