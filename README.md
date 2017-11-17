@@ -31,15 +31,15 @@ If you use **nmtpy**, you may want to cite the following [paper](https://ufal.mf
 
 # List of Important Recent Changes
 
-- Model checkpoints were unnecessarily larger by 30% because of a storing format issue. This is fixed now by https://github.com/lium-lst/nmtpy/commit/0721f34924d23b02caca52e8c3fcbcaafbb4ef41. 
+- Model checkpoints were unnecessarily larger by 30% because of a storing format issue. This is fixed now by https://github.com/lium-lst/nmtpy/commit/0721f34924d23b02caca52e8c3fcbcaafbb4ef41.
 
 ### Factored NMT
 
  - `attention_factors_seplogits.py` is removed and its functionality is added to `attention_factors` model as a configuration switch: `sep_h2olayer: True`.
- 
+
 ### NMT
  - `tied_trg_emb: True/False` is replaced with `tied_emb: False/2way/3way` to also support the sharing of "all" embeddings throughout the network.
- 
+
 
 # Introduction
 
@@ -149,7 +149,7 @@ as it needs to be installed as well. To avoid re-installing each time, you can u
 
 ## Ensuring Reproducibility in Theano
 
-(Update: The upcoming Theano v0.10 includes a configuration option `deterministic = more` that will obsolete the below patch.) 
+(Update: Theano 1.0 includes a configuration option `deterministic = more` that obsoletes the below patch.)
 
 When we started to work on **dl4mt-tutorial**, we noticed an annoying reproducibility problem where
 multiple runs of the same experiment (same seed, same machine, same GPU) were not producing exactly
