@@ -314,7 +314,10 @@ def get_model_options(handle):
 
     # tied_trg_emb, i.e. renamed to tied_emb
     if 'tied_trg_emb' in optdict and 'tied_emb' not in optdict:
-        optdict['tied_emb'] = '2way'
+        if optdict['tied_trg_emb']:
+            optdict['tied_emb'] = '2way'
+        else:
+            optdict['tied_emb'] = False
         del optdict['tied_trg_emb']
 
     return optdict
