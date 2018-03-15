@@ -2,8 +2,10 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-Feel free to send an e-mail to ozan.caglayan.etu@univ-lemans.fr for an invitation to our
-**Slack** channel https://nmtpy.slack.com
+### UNMAINTAINED
+
+This codebase is no longer maintained as we moved towards [nmtpytorch](https://github.com/lium-lst/nmtpytorch).
+
 
 ----
 
